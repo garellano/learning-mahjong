@@ -12,6 +12,24 @@ Revisión: 13 de octubre de 2026. Esta web es un recurso didáctico independient
 - [Mahjong 4 Friends: comodines](https://mahjong4friends.com/guides/mah-jongg-joker). Detalla sustituciones y cambios de comodines expuestos.
 - [Mahjong 4 Friends: documentación de su interfaz](https://mahjong4friends.com/pages/faqs/full_documentation.html). Inspiración para ayudas contextuales, ordenación y comparación de objetivos. Mezcla variantes: sus apartados de puntuación china no se aplican a esta web.
 
+### Contraste de reglas para la auditoría del 13 de octubre de 2026
+
+- [AMJA: comienzo de la partida](https://guide.americanmahjonggassociation.com/how-to-play-american-mah-jongg/start-of-the-game/): este comienza con 14 fichas y descarta primero; las demás tienen 13 y el turno avanza hacia la derecha.
+- [AMJA: desarrollo de la partida](https://guide.americanmahjonggassociation.com/how-to-play-american-mah-jongg/playing-the-game/): al pedir un descarte se completa la exposición y después se descarta; no se añade otra toma de la pared. El total incluye los grupos mostrados.
+- [AMJA: pedir un descarte para exponer](https://guide.americanmahjonggassociation.com/how-to-play-american-mah-jongg/claiming-discarded-tile-exposure/): grupos permitidos de tres o más iguales, última ficha disponible y continuidad desde quien reclama.
+- [AMJA: pedir el descarte para ganar](https://guide.americanmahjonggassociation.com/how-to-play-american-mah-jongg/mah-jongg-discarded-tile/): la última ficha puede completar una suelta o pareja para una victoria, incluida una mano oculta.
+- [AMJA: comodines y canje](https://guide.americanmahjonggassociation.com/how-to-play-american-mah-jongg/jokers-and-joker-exchange/): no sustituyen fichas sueltas ni parejas; se puede canjear después de tomar o de reclamar y terminar una exposición válida.
+- [AMJA: Charleston](https://guide.americanmahjonggassociation.com/how-to-play-american-mah-jongg/the-charleston/): tres primeros pases obligatorios, segunda ronda opcional, último pase a ciegas y cortesía por acuerdo.
+
+El contraste conserva la distinción entre reglas básicas, notas de la tarjeta y simplificaciones digitales. AMJA es la fuente de estas explicaciones accesibles; la tarjeta y el manual de NMJL son la referencia oficial para una mesa que utiliza sus reglas. La [FAQ pública de NMJL](https://www.nationalmahjonggleague.org/faq.aspx) figuraba en construcción durante esta revisión.
+
+### Referencias de pantalla
+
+- [Apple: especificaciones del iPad Air](https://www.apple.com/ipad-air/specs/): el modelo de 11 pulgadas anuncia una resolución física de 2360 × 1640 píxeles. La revisión toma como referencia 1180 × 820 px CSS en horizontal y 820 × 1180 en vertical.
+- [Apple: especificaciones del iPhone 17 Pro](https://support.apple.com/en-us/125090): resolución física de 2622 × 1206 píxeles. La aproximación de revisión es 402 × 874 px CSS en vertical.
+
+Las dimensiones CSS se derivan dividiendo las resoluciones físicas por una escala de referencia de 2 en iPad y 3 en iPhone; son una decisión de emulación, no una afirmación de Apple sobre el área útil del navegador. También se revisa 1180 × 740 para reducir la altura disponible. Barras de Safari, zoom, ajustes de texto y áreas seguras pueden modificar el espacio real. No se afirma que se hayan usado dispositivos físicos.
+
 ## Fuentes del vocabulario y la pronunciación
 
 - [AMJA: fichas y nombres](https://guide.americanmahjonggassociation.com/about-american-mah-jongg/mah-jongg-tiles/): familias, flores, comodines, vientos y dragones; confirma que Soap también nombra al dragón blanco.
@@ -52,11 +70,11 @@ El boletín exige colocar arriba del soporte toda ficha reclamada, incluso la qu
 
 ## Intercambio completo y simplificación de la mesa
 
-El primer bloque es obligatorio: tres fichas a la derecha, tres enfrente y tres a la izquierda. Cualquier jugadora puede detener el segundo antes de iniciarlo; si todas continúan, son tres a la izquierda, tres enfrente y tres a la derecha. No se abandona ese bloque a mitad.
+El primer bloque es obligatorio: tres fichas a la derecha, tres enfrente y tres a la izquierda. Cualquier jugadora puede detener el segundo antes de que se miren las fichas de su primer pase; si todas continúan, son tres a la izquierda, tres enfrente y tres a la derecha. No se abandona ese bloque a mitad.
 
 En el último pase de cada bloque, se puede completar el envío de tres con una, dos o tres fichas recién recibidas sin mirarlas. Después del último bloque realizado, cada pareja de jugadoras enfrentadas puede acordar un intercambio de cortesía de cero a tres fichas; ambas entregan la misma cantidad.
 
-La simulación inicial practica únicamente los tres pases vistos del primer bloque. La segunda ronda, los pases a ciegas y la cortesía se explican en las lecciones y se identifican en pantalla como aspectos fuera de esa simulación. Omitirlos debe ser una simplificación explícita, no una afirmación de que las reglas completas solo contienen tres pases.
+La simulación inicial practica únicamente los tres pases vistos del primer bloque. La segunda ronda, los pases a ciegas y la cortesía se explican en una ampliación opcional de la lección y se identifican en pantalla como aspectos fuera de esa simulación. Omitirlos debe ser una simplificación explícita, no una afirmación de que las reglas completas solo contienen tres pases.
 
 También se omiten puntuación monetaria, penalizaciones, declaraciones de mano muerta, errores de denominación y preparación física de la pared. Las reclamaciones se resuelven por orden de turno en una ventana digital; no se simula la carrera de manos por asegurar una ficha. Las rivales son simuladas y no conocen las manos ocultas ajenas. La pared es finita y no se crean fichas adicionales para favorecer una victoria.
 
@@ -65,10 +83,10 @@ También se omiten puntuación monetaria, penalizaciones, declaraciones de mano 
 1. Reconocer las tres familias y después las fichas especiales, tocando ejemplos grandes.
 2. Encontrar parejas, tríos y cuartetos; probar la regla del comodín con respuestas inmediatas.
 3. Comprender la meta de 14 y la lectura de una línea, distinguiendo ejercicios y tarjeta oficial.
-4. Practicar derecha, enfrente e izquierda; conocer las opciones posteriores sin exigirlas al empezar.
-5. Aprender tomar, decidir y descartar; después reclamar, exponer y recuperar un comodín.
+4. Practicar derecha, enfrente e izquierda; comparar fichas recibidas y de salida con un objetivo visible. Consultar las opciones posteriores sin exigirlas al empezar.
+5. Aprender tomar, decidir y descartar; practicar un reclamo positivo que termina en grupo mostrado y descarte; después conocer las líneas ocultas y recuperar un comodín.
 6. Elegir un objetivo, conservar lo útil y comprobar la mano antes de anunciar victoria.
-7. Jugar una mesa acompañada en español; añadir una línea personal cuando esté lista.
+7. Probar cuatro situaciones nuevas en español, eligiendo acción y motivo, con pistas y reintentos libres; jugar una mesa acompañada y añadir una línea personal cuando esté lista.
 8. Escuchar y reconocer los nombres ingleses mediante dibujos y significados españoles, repetirlos voluntariamente, comprender las frases de las compañeras y practicar después la mesa en inglés.
 
-Los tiempos breves, la ausencia de reloj, las pistas opcionales y el tono de los textos son decisiones de diseño de esta experiencia. No son reglas del Mahjong.
+Los tiempos breves, la ausencia de reloj, las pistas opcionales y el tono de los textos son decisiones de diseño de esta experiencia. No son reglas del Mahjong. Tampoco se presentan como resultados de un estudio de aprendizaje: el cierre solo recoge decisiones en cuatro situaciones con dos variantes, y no certifica dominio ni retención. El [informe de diseño](DESIGN.md) relaciona los problemas encontrados, los cambios, las mejoras esperadas y la forma de comprobarlos.

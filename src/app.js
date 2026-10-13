@@ -6,6 +6,9 @@ import { VOCAB, LISTENING_LESSONS } from "./english.js";
 import { createSpeechPlayer } from "./speech.js";
 import { createSoundPlayer, resolveSoundPreference } from "./sounds.js";
 import { renderEnglishHome, renderListeningLesson } from "./listening-ui.js";
+import { selectionImpact, lessonHint, selectionFeedback } from "./guidance.js";
+import { createReadinessRound, evaluateReadiness } from "./readiness.js";
+import { renderReadiness } from "./readiness-ui.js";
 import {
   TRAINING_PATTERNS,
   createWall,
@@ -50,6 +53,13 @@ const profile = {
   listeningSteps: {},
   listeningCompleted: [],
   audioHeard: [],
+  decisionPractice: {
+    variant: 0,
+    index: 0,
+    results: [],
+    failures: {},
+    helped: {},
+  },
   ...saved.profile,
   sound: resolveSoundPreference(saved.profile),
 };
@@ -61,6 +71,11 @@ let selected = new Set();
 let chosen = null;
 let feedback = null;
 let showHint = false;
+let hintMarked = false;
+let lessonHintVisible = false;
+let readinessChoice = null;
+let readinessReason = null;
+let readinessFeedback = null;
 let editorOpen = false;
 let draft = [];
 let editorKind = "c1";
@@ -70,6 +85,7 @@ let listeningChoice = null;
 let listeningFeedback = null;
 let listeningShowText = false;
 let vocabularyCategory = "tile";
+let vocabularyExpanded = false;
 const listenedSteps = new Set();
 let speechState = { id: null, phase: "idle" };
 // Visual feedback belongs to this visit, never to the saved game or its rules.
@@ -206,6 +222,56 @@ function checkListening() {
   listeningFeedback = { ok: listeningChoice === step.answerId };
   tone(listeningFeedback.ok);
   render();
+}
+function currentReadiness() {
+  const practice = profile.decisionPractice;
+  const round = createReadinessRound(practice.variant);
+  const index = Math.min(practice.index, round.steps.length);
+  return { practice, round, index, step: round.steps[index] };
+}
+function readinessPage() {
+  const { practice, round, index, step } = currentReadiness();
+  return renderReadiness({
+    round,
+    index,
+    choice: readinessChoice,
+    reason: readinessReason,
+    feedback: readinessFeedback,
+    hintUsed: !!practice.helped[step?.id],
+    results: practice.results,
+  });
+}
+function checkReadiness() {
+  const { practice, step } = currentReadiness();
+  if (!step || !readinessChoice || !readinessReason)
+    return toast("Elige tu decisión y el motivo antes de comprobar.");
+  readinessFeedback = evaluateReadiness(step, {
+    choice: readinessChoice,
+    reason: readinessReason,
+  });
+  practice.failures ||= {};
+  if (!readinessFeedback.ok)
+    practice.failures[step.id] = (practice.failures[step.id] || 0) + 1;
+  save();
+  tone(readinessFeedback.ok);
+  render();
+  $(".readiness-feedback")?.scrollIntoView({ block: "nearest" });
+}
+function nextReadiness() {
+  if (!readinessFeedback?.ok) return;
+  const { practice, step } = currentReadiness();
+  practice.results.push({
+    stepId: step.id,
+    attempts: (practice.failures?.[step.id] || 0) + 1,
+    hintUsed: !!practice.helped[step.id],
+    ok: true,
+  });
+  practice.index += 1;
+  save();
+  resetInteraction();
+  render();
+  $("#main")?.focus();
+  window.scrollTo(0, 0);
 }
 function moveListening(action) {
   const { lesson, index } = currentListening();
@@ -522,10 +588,16 @@ function resetInteraction() {
   listeningChoice = null;
   listeningFeedback = null;
   listeningShowText = false;
+  lessonHintVisible = false;
+  readinessChoice = null;
+  readinessReason = null;
+  readinessFeedback = null;
 }
 function navLink(id, label, symbol) {
   const active =
-    route()[0] === id || (id === "repaso" && route()[0] === "escuchar");
+    route()[0] === id ||
+    (id === "repaso" && route()[0] === "escuchar") ||
+    (id === "inicio" && ["leccion", "practica"].includes(route()[0]));
   return `<a href="#${id}" class="${active ? "active" : ""}" ${active ? 'aria-current="page"' : ""}><span class="nav-icon" aria-hidden="true">${symbol}</span>${label}</a>`;
 }
 function frame(body) {
@@ -536,7 +608,19 @@ function home() {
   const done = profile.completed.length;
   const next =
     LESSONS.find((l) => !profile.completed.includes(l.id)) || LESSONS[0];
-  return `<section class="hero"><div><span class="eyebrow">HOLA, ${esc(profile.name)} · ESTE MOMENTO ES PARA TI</span><h1>Una ficha a la vez.<br><em>Y cada vez, mejor.</em></h1><p>Un nuevo reto, sin ninguna prisa. Aprende Mahjong Americano jugando, con pasos pequeños y ayuda cuando la quieras.</p><div class="button-row"><a class="btn" href="#leccion/${next.id}">${done ? "Continuar mi camino" : "Vamos con el primer reto"} ${icons.arrow}</a></div><div class="hero-meta"><span>Desde cero</span><span>Primero en español</span><span>A tu ritmo</span></div></div><div class="hero-visual" aria-hidden="true"><span class="spark a">✧</span><span class="spark b">✧</span><div class="oval-table"><div class="tile-fan">${["b3", "c5", "f"].map((k) => tileHTML(k, { disabled: true })).join("")}</div></div><div class="floating-note"><span class="check">✓</span><div><b>Pequeños retos. Grandes avances.</b>Hoy solo necesitas dar el primer paso.</div></div></div></section><section aria-labelledby="path-heading"><div class="section-line"><div><h2 id="path-heading">Tu camino a la mesa</h2><p>Un reto a la vez. Puedes repetir o explorar cualquier fase.</p></div><div class="progress-note">${done} de ${LESSONS.length} fases<div class="progress-track" role="progressbar" aria-label="Fases completadas" aria-valuenow="${done}" aria-valuemin="0" aria-valuemax="${LESSONS.length}"><span style="width:${(done / LESSONS.length) * 100}%"></span></div></div></div><div class="course-grid">${LESSONS.map((l, i) => `<a class="course-card ${profile.completed.includes(l.id) ? "completed" : ""}" href="#leccion/${l.id}"><div class="card-top"><span>FASE ${String(i + 1).padStart(2, "0")}</span>${profile.completed.includes(l.id) ? '<span class="check" aria-label="Completada">✓</span>' : `<span>${l.minutes} MIN</span>`}</div><span class="course-symbol" aria-hidden="true">${symbols[i]}</span><h3>${esc(l.title)}</h3><p>${esc(l.subtitle)}</p><span class="card-arrow" aria-hidden="true">↗</span></a>`).join("")}<a class="course-card practice-card" href="#mesa"><div class="card-top"><span>TU ESPACIO DE PRÁCTICA</span><span>↗</span></div><h3>¿Y si ya<br>jugamos?</h3><p>Tu mesa, tres compañeras<br>y una guía a tu lado.</p><span class="card-arrow">${icons.arrow}</span></a></div></section><section class="quick-challenge"><div><span class="eyebrow" style="margin-bottom:8px">TU PRIMERA VICTORIA EMPIEZA AQUÍ</span><h3>Encuentra las dos que son iguales.</h3><p id="quick-feedback" aria-live="polite">Tócalas. No necesitas saber ninguna regla todavía.</p></div><div class="tile-row" id="quick-tiles">${["c3", "b2", "c3", "c5"].map((k, i) => `<span data-quick="${i}">${tileHTML(k, { id: String(i) })}</span>`).join("")}</div></section>`;
+  const practiceNext =
+    profile.completed.includes("estrategia") &&
+    profile.decisionPractice.index < 4;
+  const nextPath = practiceNext ? "practica" : "leccion/" + next.id;
+  return `<section class="hero"><div><span class="eyebrow">HOLA, ${esc(profile.name)} · ESTE MOMENTO ES PARA TI</span><h1>Una ficha a la vez.<br><em>Y cada vez, mejor.</em></h1><p>Un nuevo reto, sin ninguna prisa. Aprende Mahjong Americano jugando, con pasos pequeños y ayuda cuando la quieras.</p><div class="button-row"><a class="btn" href="#${nextPath}">${done ? "Continuar mi camino" : "Vamos con el primer reto"} ${icons.arrow}</a></div><div class="hero-meta"><span>Desde cero</span><span>Primero en español</span><span>A tu ritmo</span></div></div><div class="hero-visual" aria-hidden="true"><span class="spark a">✧</span><span class="spark b">✧</span><div class="oval-table"><div class="tile-fan">${["b3", "c5", "f"].map((k) => tileHTML(k, { disabled: true })).join("")}</div></div><div class="floating-note"><span class="check">✓</span><div><b>Pequeños retos. Grandes avances.</b>Hoy solo necesitas dar el primer paso.</div></div></div></section><section aria-labelledby="path-heading"><div class="section-line"><div><h2 id="path-heading">Tu camino a la mesa</h2><p>Un reto a la vez. Puedes repetir o explorar cualquier fase.</p></div><div class="progress-note">${done} de ${LESSONS.length} fases<div class="progress-track" role="progressbar" aria-label="Fases completadas" aria-valuenow="${done}" aria-valuemin="0" aria-valuemax="${LESSONS.length}"><span style="width:${(done / LESSONS.length) * 100}%"></span></div></div></div><div class="course-grid">${LESSONS.map((l, i) => `<a class="course-card ${profile.completed.includes(l.id) ? "completed" : ""}" href="#leccion/${l.id}"><div class="card-top"><span>FASE ${String(i + 1).padStart(2, "0")}</span>${profile.completed.includes(l.id) ? '<span class="check" aria-label="Completada">✓</span>' : `<span>${l.minutes} MIN</span>`}</div><span class="course-symbol" aria-hidden="true">${symbols[i]}</span><h3>${esc(l.title)}</h3><p>${esc(l.subtitle)}</p><span class="card-arrow" aria-hidden="true">↗</span></a>`).join("")}<a class="course-card practice-card" href="#mesa"><div class="card-top"><span>TU ESPACIO DE PRÁCTICA</span><span>↗</span></div><h3>¿Y si ya<br>jugamos?</h3><p>Tu mesa, tres compañeras<br>y una guía a tu lado.</p><span class="card-arrow">${icons.arrow}</span></a></div></section><section class="notice autonomy-invitation"><h2>¿Qué decidirías tú?</h2><p>Después de las prácticas en español, prueba cuatro situaciones con fichas nuevas. Elige una jugada y explica tu motivo. La ayuda sigue disponible.</p><a class="btn secondary" href="#practica">Probar mis decisiones →</a></section><section class="quick-challenge"><div><span class="eyebrow" style="margin-bottom:8px">TU PRIMERA VICTORIA EMPIEZA AQUÍ</span><h3>Encuentra las dos que son iguales.</h3><p id="quick-feedback" aria-live="polite">Tócalas. No necesitas saber ninguna regla todavía.</p></div><div class="tile-row" id="quick-tiles">${["c3", "b2", "c3", "c5"].map((k, i) => `<span data-quick="${i}">${tileHTML(k, { id: String(i) })}</span>`).join("")}</div></section>`;
+}
+function lessonContexts(step) {
+  return `${step.contextSections?.length ? `<div class="lesson-context-groups">${step.contextSections.map((section) => `<section class="lesson-context-section"><h3>${esc(section.label)}</h3><div class="tile-row">${section.tiles.map((kind) => tileHTML(kind, { small: true, disabled: true })).join("")}</div></section>`).join("")}</div>` : ""}${step.cardGroups?.length ? `<div class="lesson-context-groups" aria-label="Ejemplo original: los colores relacionan familias">${step.cardGroups.map((group) => `<section class="lesson-context-section card-${esc(group.color)}"><h3>${esc(group.label)}</h3><div class="tile-row">${group.tiles.map((kind) => tileHTML(kind, { small: true, disabled: true })).join("")}</div></section>`).join("")}</div>` : ""}`;
+}
+function lessonExtraRules(lesson) {
+  return lesson.extraRules?.length
+    ? `<details class="lesson-extra-rules"><summary>Para una mesa real, después</summary><p>Estas opciones amplían el primer recorrido. No necesitas memorizarlas para practicar aquí.</p>${lesson.extraRules.map((rule) => `<h3>${esc(rule.title)}</h3><p>${esc(rule.text)}</p>`).join("")}</details>`
+    : "";
 }
 function lessonPage(id) {
   const lesson = LESSONS.find((l) => l.id === id) || LESSONS[0];
@@ -548,11 +632,17 @@ function lessonPage(id) {
   if (stepIndex === lesson.steps.length) return lessonComplete(lesson, index);
   const step = lesson.steps[stepIndex],
     task = step.task;
-  return `<a class="back-link" href="#inicio">${icons.back} Mi camino</a><div class="page-title"><div><span class="eyebrow" style="margin:0">FASE ${String(index + 1).padStart(2, "0")}</span><h1>${esc(lesson.title)}</h1></div></div><div class="lesson-layout"><section class="lesson-panel"><div class="lesson-progress"><span>Reto ${stepIndex + 1} de ${lesson.steps.length}</span><div class="progress-track"><span style="width:${((stepIndex + 1) / lesson.steps.length) * 100}%"></span></div><span>Sin prisa</span></div><div class="lesson-content"><h2>${esc(step.title)}</h2><p>${esc(step.text)}</p>${step.audioIds ? lessonAudio(step.audioIds) : ""}<div class="exercise"><p class="exercise-prompt">${esc(task.prompt)}</p>${step.tiles?.length ? `<div class="tile-row" data-motion-zone="lesson">${step.tiles.map((k, i) => `<span data-exercise-tile="${i}">${tileHTML(k, { id: String(i), motionId: `lesson-${lesson.id}-${stepIndex}-${i}`, lang: lesson.id === "ingles" ? "en" : "es", selected: selected.has(String(i)), disabled: task.type !== "select" })}</span>`).join("")}</div>` : ""}${task.type === "choice" ? `<div class="choices">${task.options.map((o) => `<button class="choice ${chosen === o.id ? "selected" : ""}" data-choice="${esc(o.id)}" aria-pressed="${chosen === o.id}">${esc(o.label)}</button>`).join("")}</div>` : ""}</div>${feedback ? `<div class="feedback ${feedback.ok ? "" : "retry"}" role="status"><strong>${feedback.ok ? "¡Reto conseguido!" : "Probemos otra vez."}</strong>${esc(feedback.ok ? task.success : task.explanation)}${!feedback.ok && (profile.attempts[lesson.id + "-" + stepIndex] || 0) >= 2 ? '<p style="margin:10px 0 0">Puedes mirar la pista y tocar las fichas con calma. El progreso se construye practicando.</p>' : ""}</div>` : ""}</div><div class="lesson-actions"><button class="text-button" data-action="lesson-back" ${stepIndex === 0 ? "disabled" : ""}>← Anterior</button>${feedback?.ok ? '<button class="btn" data-action="lesson-next">Siguiente reto ' + icons.arrow + "</button>" : '<button class="btn" data-action="lesson-check">Comprobar mi respuesta</button>'}</div></section><aside><div class="coach"><div class="coach-icon">${icons.spark}</div><h3>Una pista a tu lado</h3><p>${esc(step.tip || "Mira el dibujo y el número. Compara una ficha a la vez; no hace falta memorizar todo hoy.")}</p><p class="tiny">No hay vidas que perder. Cada intento te ayuda a reconocer algo nuevo.</p></div><nav class="lesson-map" aria-label="Fases">${LESSONS.map((l, i) => `<a href="#leccion/${l.id}" class="${lesson.id === l.id ? "active" : ""}"><span class="step-dot">${profile.completed.includes(l.id) ? "✓" : i + 1}</span>${esc(l.title)}</a>`).join("")}</nav></aside></div>`;
+  return `<a class="back-link" href="#inicio">${icons.back} Mi camino</a><div class="page-title"><div><span class="eyebrow" style="margin:0">FASE ${String(index + 1).padStart(2, "0")}</span><h1>${esc(lesson.title)}</h1></div></div><div class="lesson-layout"><section class="lesson-panel"><div class="lesson-progress"><span>Reto ${stepIndex + 1} de ${lesson.steps.length}</span><div class="progress-track"><span style="width:${((stepIndex + 1) / lesson.steps.length) * 100}%"></span></div><span>Sin prisa</span></div><div class="lesson-content"><h2>${esc(step.title)}</h2><p>${esc(step.text)}</p>${lessonContexts(step)}${step.audioIds ? lessonAudio(step.audioIds) : ""}<div class="exercise"><p class="exercise-prompt">${esc(task.prompt)}</p>${step.tiles?.length && !step.cardGroups ? `<div class="tile-row" data-motion-zone="lesson">${step.tiles.map((k, i) => `<span data-exercise-tile="${i}">${tileHTML(k, { id: String(i), motionId: `lesson-${lesson.id}-${stepIndex}-${i}`, lang: lesson.id === "ingles" ? "en" : "es", selected: selected.has(String(i)), disabled: task.type !== "select" })}</span>`).join("")}</div>` : ""}${task.type === "select" ? `<p class="selection-count" role="status">${selected.size} de ${task.answer.length} fichas seleccionadas · toca otra vez para quitar una.</p>` : ""}${task.type === "choice" ? `<div class="choices">${task.options.map((o) => `<button class="choice ${chosen === o.id ? "selected" : ""}" data-choice="${esc(o.id)}" aria-pressed="${chosen === o.id}">${esc(o.label)}</button>`).join("")}</div>` : ""}</div>${feedback ? `<div class="feedback ${feedback.ok ? "" : "retry"}" role="status"><strong>${feedback.ok ? "¡Reto conseguido!" : "Probemos otra vez."}</strong>${esc(feedback.ok ? task.success : feedback.quantity || "Mira la explicación y vuelve a probar.")}<p>${esc(task.explanation)}</p>${!feedback.ok && (profile.attempts[lesson.id + "-" + stepIndex] || 0) >= 2 ? '<p style="margin:10px 0 0">Puedes mirar la pista y tocar las fichas con calma. El progreso se construye practicando.</p>' : ""}</div>` : ""}</div><div class="lesson-actions"><button class="text-button" data-action="lesson-back" ${stepIndex === 0 ? "disabled" : ""}>← Anterior</button>${feedback?.ok ? '<button class="btn" data-action="lesson-next">Siguiente reto ' + icons.arrow + "</button>" : '<button class="btn" data-action="lesson-check">Comprobar mi respuesta</button>'}</div></section><aside><div class="coach"><div class="coach-icon">${icons.spark}</div><h3>Una pista a tu lado</h3>${lessonHintVisible ? `<p>${esc(lessonHint(lesson, step))}</p>` : `<p>Si necesitas otra forma de mirarlo, puedes pedir una pista.</p><button class="btn subtle" data-action="lesson-hint">Ver una pista</button>`}<p class="tiny">No hay vidas que perder. Cada intento te ayuda a reconocer algo nuevo.</p></div><nav class="lesson-map" aria-label="Fases">${LESSONS.map((l, i) => `<a href="#leccion/${l.id}" class="${lesson.id === l.id ? "active" : ""}"><span class="step-dot">${profile.completed.includes(l.id) ? "✓" : i + 1}</span>${esc(l.title)}</a>`).join("")}</nav>${lessonExtraRules(lesson)}</aside></div>`;
 }
 function lessonComplete(lesson, index) {
   const next = LESSONS[index + 1];
-  return `<a class="back-link" href="#inicio">${icons.back} Mi camino</a><div class="lesson-panel complete-banner"><div class="medal" aria-hidden="true">✧</div><span class="eyebrow">UN PASO MÁS, A TU MANERA</span><h2>Una nueva habilidad, ${esc(profile.name)}.</h2><p>Completaste «${esc(lesson.title)}».<br>¿Te apetece repetir, probarlo en la mesa o subir el reto?</p><div class="button-row"><button class="btn secondary" data-action="lesson-repeat">Otra práctica</button><a class="btn" href="#${next ? "leccion/" + next.id : "repaso"}">${next ? "Subir el reto" : "Entrenar el oído"} ${icons.arrow}</a><a class="text-button" href="#mesa">Probarlo en la mesa</a></div></div>`;
+  const nextPath =
+    lesson.id === "estrategia"
+      ? "practica"
+      : next
+        ? "leccion/" + next.id
+        : "repaso";
+  return `<a class="back-link" href="#inicio">${icons.back} Mi camino</a><div class="lesson-panel complete-banner"><div class="medal" aria-hidden="true">✧</div><span class="eyebrow">UN PASO MÁS, A TU MANERA</span><h2>Práctica completada, ${esc(profile.name)}.</h2><p>Terminaste los ejercicios de «${esc(lesson.title)}».<br>${lesson.id === "estrategia" ? "Ahora prueba cuatro decisiones con fichas distintas. Puedes pedir ayuda y volver a intentar." : "Puedes repetirlos o probar el siguiente paso a tu ritmo."}</p><div class="button-row"><button class="btn secondary" data-action="lesson-repeat">Repetir estos ejercicios</button><a class="btn" href="#${nextPath}">${lesson.id === "estrategia" ? "Probar mis decisiones" : next ? "Siguiente práctica" : "Entrenar el oído"} ${icons.arrow}</a><a class="text-button" href="#mesa">Probarlo en la mesa</a></div></div>`;
 }
 function currentLesson() {
   const lesson = LESSONS.find((l) => l.id === route()[1]) || LESSONS[0];
@@ -579,7 +669,10 @@ function checkLesson() {
     toast("Elige tu respuesta para comprobarla.");
     return;
   }
-  feedback = { ok };
+  feedback = {
+    ok,
+    quantity: !ok ? selectionFeedback(step.task, selected.size) : "",
+  };
   if (!ok) {
     const key = lesson.id + "-" + index;
     profile.attempts[key] = (profile.attempts[key] || 0) + 1;
@@ -620,11 +713,7 @@ function shortHint() {
       "La mano terminó. Revisa la combinación ganadora o comienza una nueva mesa.",
       "The hand is over. Review the winning hand or start a new table.",
     );
-  if (game.phase === "charleston")
-    return tr(
-      "Marqué tres fichas para pasar. Puedes cambiar la selección antes de enviarlas.",
-      "I selected three tiles to pass. You can change the selection before passing.",
-    );
+  if (game.phase === "charleston") return decisionHint();
   if (game.phase === "draw")
     return tr(
       "Primero toma una ficha de la pared. Después elegimos un descarte.",
@@ -632,7 +721,7 @@ function shortHint() {
     );
   if (game.phase === "claim")
     return tr(
-      "Revisa la ficha ofrecida arriba. Solo reclámala para completar un grupo válido o ganar.",
+      "Revisa la ficha ofrecida arriba y tu objetivo. La simulación ofrece reclamos para ese objetivo. Solo reclama para completar un grupo permitido o ganar.",
       "Check the offered tile above. Only call to complete a valid group or win.",
     );
   const player = game.players[0];
@@ -641,16 +730,52 @@ function shortHint() {
       "Tu mano encaja por completo. ¡Declara Mahjong! No necesitas descartar.",
       "Your hand matches completely. Call Mahjong! You do not need to discard.",
     );
-  const tile = player.hand.find((t) => selected.has(t.id));
-  return tile
-    ? tr(
-        `${tileLabel(tile.kind)} es una candidata a descartar para este objetivo. Tú decides.`,
-        `${tileLabel(tile.kind, "en")} is a discard candidate for this target. You decide.`,
+  return decisionHint();
+}
+function decisionHint() {
+  if (!["charleston", "discard"].includes(game.phase)) return gameMessage();
+  if (!selected.size)
+    return tr(
+      "Compara número, familia y cantidad con tu objetivo. Elige primero qué conservar; después prueba una selección. Puedes pedir que marque una opción.",
+      "Compare number, suit and quantity with your target. Decide what to keep, then try a selection. You can ask me to mark an option.",
+    );
+  const impact = selectionImpact(
+    game.players[0].hand,
+    currentPattern(),
+    game.players[0].exposed,
+    [...selected],
+  );
+  if (impact.complete && game.phase === "discard")
+    return tr(
+      "Tu mano ya completa este objetivo. Puedes declarar Mahjong en lugar de descartar.",
+      "Your hand completes this target. You can call Mahjong instead of discarding.",
+    );
+  const prefix = hintMarked
+    ? tr("Esta es una propuesta. ", "This is one suggestion. ")
+    : tr("Tu selección: ", "Your selection: ");
+  if (!impact.lost && impact.selected.some((tile) => tile.kind === "j"))
+    return (
+      prefix +
+      tr(
+        "El comodín no cambia las coincidencias ahora, pero puede ayudarte en un grupo de tres o más iguales. Compáralo con otra ficha antes de decidir.",
+        "The Joker does not change this target's matches now, but it may help a group of three or more identical tiles. Compare another tile before deciding.",
       )
-    : tr(
-        "Compara tus fichas con el objetivo y revisa los huecos que faltan.",
-        "Compare your tiles with the target and check the missing tiles.",
-      );
+    );
+  return (
+    prefix +
+    (impact.lost
+      ? tr(
+          `Al dejar estas fichas, pasarías de ${impact.before} a ${impact.after} coincidencias con este objetivo. Alguna ficha elegida sí ayuda a completarlo. Puedes compararla con otra o cambiar de objetivo.`,
+          `Removing these tiles would change this target's matches from ${impact.before} to ${impact.after}. At least one selected tile helps this target. Compare another tile or another target.`,
+        ).trim()
+      : tr(
+          `Conservarías tus ${impact.after} coincidencias: las fichas elegidas están fuera de los grupos que necesitas o sobran de esa cantidad. Esta comparación solo considera el objetivo elegido.`,
+          `You would keep your ${impact.after} matches: the selected tiles are outside the needed groups or exceed their quantity. This comparison only considers your chosen target.`,
+        ).trim())
+  );
+}
+function rackTarget(pattern) {
+  return `<div class="rack-target"><h3>${tr("Tu objetivo, junto a tus fichas", "Your target, beside your tiles")}</h3><div class="rack-target-groups">${pattern.groups.map((group) => `<div class="rack-target-group">${tileHTML(group.kind, { small: true, disabled: true })}<span>× ${group.count}</span></div>`).join("")}</div><p>${tr("Cada dibujo indica la ficha; × indica cuántas necesitas.", "Each picture identifies a tile; × shows how many you need.")} ${pattern.source === "personal" ? tr("Línea personal: revisa sus notas.", "Personal line: check its notes.") : tr("Ejemplo de práctica.", "Training example.")}</p></div>`;
 }
 function gameMessage() {
   if (game.phase === "bots") return botEventMessage(game.botEvent);
@@ -704,18 +829,17 @@ function gamePage() {
   const player = game.players[0],
     pattern = currentPattern();
   const analysis = analyzeHand(player.hand, pattern, player.exposed);
-  const hint = suggestDiscard(player.hand, pattern, player.exposed);
   const rank = rankPatterns(player.hand, game.patterns, player.exposed);
   const total =
     player.hand.length + player.exposed.reduce((n, g) => n + g.tiles.length, 0);
   const selectedTile = player.hand.find((t) => selected.has(t.id));
   const unavailable = publicAvailability(pattern);
-  return `<div class="page-title"><div><span class="eyebrow">${tr("TU MESA DE PRÁCTICA", "YOUR PRACTICE TABLE")} · ${game.mode === "guided" ? tr("GUIADA", "GUIDED") : tr("AL AZAR", "RANDOM")}</span><h1>${tr("Tu siguiente pequeño logro.", "One tile closer.")}</h1><p>${tr("Mira tus fichas. Elige una decisión. Puedes pedir ayuda.", "Look at your tiles. Make one decision. Ask for help whenever you like.")}</p></div><button class="btn secondary" data-action="game-menu">${tr("Otra mesa", "New table")}</button></div><div class="game-layout"><section><div class="table"><div class="opponents">${game.players
+  return `<div class="page-title game-heading"><div><span class="eyebrow">${tr("TU MESA DE PRÁCTICA", "YOUR PRACTICE TABLE")} · ${game.mode === "guided" ? tr("GUIADA", "GUIDED") : tr("AL AZAR", "RANDOM")}</span><h1>${tr("Tu siguiente pequeño logro.", "One tile closer.")}</h1><p>${tr("Mira tus fichas. Elige una decisión. Puedes pedir ayuda.", "Look at your tiles. Make one decision. Ask for help whenever you like.")}</p></div><button class="btn secondary" data-action="game-menu">${tr("Otra mesa", "New table")}</button></div><div class="game-layout game-screen"><section><div class="table"><div class="opponents">${game.players
     .slice(1)
     .map((p, i) => opponentHTML(p, i + 1))
     .join(
       "",
-    )}</div><div class="table-center"><span class="eyebrow">${tr("FICHAS EN LA PARED", "TILES IN THE WALL")}</span><div class="wall-count" id="wall-source">${game.wall.length}</div><div class="table-status">${esc(gameMessage())}</div>${turnControls()}</div><p class="discard-label">${tr("DESCARTES · LAS MÁS RECIENTES AL FINAL", "DISCARDS · MOST RECENT LAST")}</p><div class="discard-tray" data-motion-zone="discards">${
+    )}</div><div class="table-center"><span class="eyebrow">${tr("FICHAS EN LA PARED", "TILES IN THE WALL")}</span><div class="wall-count" id="wall-source">${game.wall.length}</div><div class="table-status">${esc(gameMessage())}</div>${turnControls()}</div><p class="discard-label">${tr("DESCARTES · LAS MÁS RECIENTES AL FINAL", "DISCARDS · MOST RECENT LAST")}</p><div class="discard-tray" data-motion-zone="discards" tabindex="0" aria-label="${tr("Descartes recientes. Desplázate para revisar.", "Recent discards. Scroll to review.")}">${
     game.discards
       .slice(-24)
       .map((d) =>
@@ -734,12 +858,12 @@ function gamePage() {
           { small: true, disabled: true },
         )}</p>`
       : ""
-  }<div class="rack" aria-label="${tr("Tus fichas. Toca para seleccionar.", "Your tiles. Tap to select.")}" id="hand" data-motion-zone="hand">${player.hand
+  }${rackTarget(pattern)}<div class="rack" aria-label="${tr("Tus fichas. Toca para seleccionar.", "Your tiles. Tap to select.")}" id="hand" data-motion-zone="hand">${player.hand
     .filter((t) => t.id !== game.winningClaimTileId)
     .map((t) => gameTile(t, { selected: selected.has(t.id), lang }))
     .join(
       "",
-    )}</div><div class="rack-actions">${game.phase === "charleston" ? `<button class="btn" data-action="pass" ${selected.size !== 3 ? "disabled" : ""}>${tr("Pasar 3", "Pass 3")} ${["→", "↑", "←"][game.passIndex]}</button>` : ""}${game.phase === "draw" ? `<button class="btn" data-action="draw">${tr("Tomar una ficha", "Pick a tile")} ${icons.arrow}</button>` : ""}${game.phase === "discard" ? `<button class="btn" data-action="discard" ${selected.size !== 1 ? "disabled" : ""}>${tr("Descartar", "Discard")} ${selectedTile ? esc(tileLabel(selectedTile.kind, lang)) : tr("una ficha", "one tile")}</button><button class="btn secondary" data-action="win">Mahjong!</button>` : ""}${game.phase === "finished" ? `<button class="btn" data-action="game-menu">${tr("Volver a practicar", "Practice again")}</button>` : ""}<button class="btn subtle" data-action="sort">${tr("Ordenar fichas", "Sort tiles")}</button><button class="btn subtle" data-action="advice" ${game.phase === "bots" ? "disabled" : ""}>${tr("Dame una pista", "Give me a hint")}</button></div>${showHint ? `<p class="inline-hint" role="status">${esc(shortHint())}</p>` : ""}</div><p class="table-help">${tr("Mesa de aprendizaje: practicamos el primer intercambio de tres pases. La segunda ronda, el pase a ciegas, el intercambio de cortesía y la puntuación quedan fuera de esta simulación. El orden de las compañeras es derecha → enfrente → izquierda.", "Learning table: we practice the first three Charleston passes. The second Charleston, blind passes, courtesy pass and scoring are outside this simulation. Opponents are shown right → across → left.")}</p>${game.phase === "finished" ? finishedHand() : ""}</section><aside class="game-coach"><div class="target-card"><span class="eyebrow" style="margin-bottom:10px">${tr("TU COMBINACIÓN OBJETIVO", "YOUR TARGET HAND")}</span><label class="field" style="margin-bottom:0"><span class="hide">${tr("Elegir combinación", "Choose a target")}</span><select id="target-select" ${game.phase === "bots" ? "disabled" : ""}>${rank.map((r) => `<option value="${esc(r.pattern.id)}" ${r.pattern.id === pattern.id ? "selected" : ""} ${!r.compatible ? "disabled" : ""}>${esc(patternName(r.pattern))} · ${r.matched}/14</option>`).join("")}</select></label><p style="margin-top:10px">${pattern.source === "personal" ? tr("Añadida por ti · comprueba tu tarjeta 2026.", "Added by you · check your 2026 card.") : tr("Ejercicio didáctico propio · no es una línea oficial 2026.", "Original training hand · not an official 2026 line.")} ${pattern.concealed ? tr("Mano oculta.", "Concealed hand.") : ""}</p>${miniatureGroups(pattern, analysis)}<p class="small muted">${tr("Las fichas claras aún te faltan.", "Faded tiles are still missing.")}</p><div class="match-summary"><strong>${analysis.matched} ${tr("de 14 encajan", "of 14 match")}</strong></div><div class="progress-track"><span style="width:${(analysis.matched / 14) * 100}%"></span></div>${analysis.missing.length ? `<p class="missing-label">${tr("TE FALTAN PARA ESTE OBJETIVO", "STILL NEEDED FOR THIS TARGET")}</p><div class="tile-row" style="justify-content:flex-start;gap:7px">${analysis.missing.map((k) => tileHTML(k, { small: true, disabled: true, lang })).join("")}</div>` : `<p class="small">${tr("¡Todas encajan! Declara Mahjong en tu turno.", "All tiles match! Call Mahjong on your turn.")}</p>`}${unavailable ? `<div class="feedback retry">${esc(unavailable)}</div>` : ""}</div><div class="hint-card"><h3>${icons.spark} ${tr("Tu guía de mesa", "Your table guide")}</h3><p>${showHint ? esc(game.phase === "charleston" ? tr("Conserva las fichas que encajan y pasa tres de las que menos ayudan. Nunca pases comodines. Ya marqué una propuesta; puedes cambiarla.", "Keep tiles that match your target. Pass three less useful tiles, never Jokers. I selected a suggestion; you can change it.") : game.phase === "draw" ? tr("Tienes 13 fichas en total. Primero toma una de la pared; después elegimos cuál descartar.", "You have 13 tiles total. Pick from the wall first, then choose a discard.") : game.phase === "claim" ? tr("Solo reclama si completas un grupo permitido o toda tu mano. Un grupo mostrado ya no puede cambiar.", "Only call to complete a permitted group or your whole hand. An exposed group stays fixed.") : analysis.complete ? tr("Tu mano está completa: declara Mahjong para terminar. No necesitas descartar.", "Your hand is complete: call Mahjong to finish. You do not need to discard.") : hint.tile ? tr(`Para este objetivo, ${tileLabel(hint.tile.kind)} es una candidata a descartar. Te marqué esa candidata; puedes elegir otra y comparar otros objetivos.`, `${tileLabel(hint.tile.kind, "en")} is a discard candidate for this target. I selected that candidate. You can choose another and compare targets too.`) : tr("Tu mano encaja: comprueba el objetivo y declara Mahjong.", "Your hand matches: check the target and call Mahjong.")) : esc(tr("Cuando quieras, pide una pista. Te ayudaré a ver qué conservar y qué falta, usando solo tu mano y las fichas visibles.", "Ask for a hint whenever you like. We use your hand and visible tiles, never your opponents’ hidden tiles."))}</p><button class="text-button hint-toggle" data-action="advice" ${game.phase === "bots" ? "disabled" : ""}>${tr("Muéstrame una sugerencia", "Show me a suggestion")} →</button></div><div class="target-card"><h3>${tr("El pequeño reto de este turno", "This turn’s small challenge")}</h3><p>${esc(gameMessage())}</p>${en() ? `<div class="voice-card table-voice" data-voice-id="table-instruction"><button class="text-button" data-speak="table-instruction" ${speech.supported ? "" : "disabled"}>Listen to this instruction</button></div>` : ""}<button class="text-button" data-action="language">${en() ? "Volver al español" : "Probar la mesa en inglés"} →</button></div></aside></div>`;
+    )}</div><div class="rack-actions">${game.phase === "charleston" ? `<button class="btn" data-action="pass" ${selected.size !== 3 ? "disabled" : ""}>${tr("Pasar 3", "Pass 3")} ${["→", "↑", "←"][game.passIndex]}</button>` : ""}${game.phase === "draw" ? `<button class="btn" data-action="draw">${tr("Tomar una ficha", "Pick a tile")} ${icons.arrow}</button>` : ""}${game.phase === "discard" ? `<button class="btn" data-action="discard" ${selected.size !== 1 ? "disabled" : ""}>${tr("Descartar", "Discard")} ${selectedTile ? esc(tileLabel(selectedTile.kind, lang)) : tr("una ficha", "one tile")}</button><button class="btn secondary" data-action="win">Mahjong!</button>` : ""}${game.phase === "finished" ? `<button class="btn" data-action="game-menu">${tr("Volver a practicar", "Practice again")}</button>` : ""}<button class="btn subtle" data-action="sort">${tr("Ordenar fichas", "Sort tiles")}</button><button class="btn subtle" data-action="${showHint && ["charleston", "discard"].includes(game.phase) ? "mark-suggestion" : "advice"}" ${game.phase === "bots" ? "disabled" : ""}>${showHint && ["charleston", "discard"].includes(game.phase) ? tr("Muéstrame una opción", "Mark one option") : tr("Dame una pista", "Give me a hint")}</button></div><p id="decision-preview" class="inline-hint decision-preview" role="status" ${showHint ? "" : "hidden"}>${showHint ? esc(shortHint()) : ""}</p></div><p class="table-help">${tr("Mesa de aprendizaje: practicamos el primer intercambio de tres pases. La segunda ronda, el pase a ciegas, el intercambio de cortesía y la puntuación quedan fuera de esta simulación. El orden de las compañeras es derecha → enfrente → izquierda.", "Learning table: we practice the first three Charleston passes. The second Charleston, blind passes, courtesy pass and scoring are outside this simulation. Opponents are shown right → across → left.")}</p>${game.phase === "finished" ? finishedHand() : ""}</section><aside class="game-coach"><div class="target-card"><span class="eyebrow" style="margin-bottom:10px">${tr("TU COMBINACIÓN OBJETIVO", "YOUR TARGET HAND")}</span><label class="field" style="margin-bottom:0"><span class="hide">${tr("Elegir combinación", "Choose a target")}</span><select id="target-select" ${["bots", "claim"].includes(game.phase) ? "disabled" : ""}>${rank.map((r) => `<option value="${esc(r.pattern.id)}" ${r.pattern.id === pattern.id ? "selected" : ""} ${!r.compatible ? "disabled" : ""}>${esc(patternName(r.pattern))} · ${r.matched}/14</option>`).join("")}</select></label><p style="margin-top:10px">${pattern.source === "personal" ? tr("Añadida por ti · comprueba tu tarjeta 2026.", "Added by you · check your 2026 card.") : tr("Ejercicio didáctico propio · no es una línea oficial 2026.", "Original training hand · not an official 2026 line.")} ${pattern.concealed ? tr("Mano oculta.", "Concealed hand.") : ""}</p>${miniatureGroups(pattern, analysis)}<p class="small muted">${tr("Las fichas claras aún te faltan.", "Faded tiles are still missing.")}</p><div class="match-summary"><strong>${analysis.matched} ${tr("de 14 encajan", "of 14 match")}</strong></div><div class="progress-track"><span style="width:${(analysis.matched / 14) * 100}%"></span></div>${analysis.missing.length ? `<p class="missing-label">${tr("TE FALTAN PARA ESTE OBJETIVO", "STILL NEEDED FOR THIS TARGET")}</p><div class="tile-row" style="justify-content:flex-start;gap:7px">${analysis.missing.map((k) => tileHTML(k, { small: true, disabled: true, lang })).join("")}</div>` : `<p class="small">${tr("¡Todas encajan! Declara Mahjong en tu turno.", "All tiles match! Call Mahjong on your turn.")}</p>`}${unavailable ? `<div class="feedback retry">${esc(unavailable)}</div>` : ""}</div><div class="hint-card"><h3>${icons.spark} ${tr("Tu guía de mesa", "Your table guide")}</h3><p>${showHint ? esc(shortHint()) : esc(tr("Primero compara tu mano con el objetivo. Puedes pedir una pista que explique qué mirar, y después una propuesta marcada si la necesitas.", "First compare your hand with your target. Ask for a hint about what to look for, then for a marked suggestion if you need it."))}</p><button class="text-button hint-toggle" data-action="advice" ${game.phase === "bots" ? "disabled" : ""}>${tr("Explicarme qué mirar", "Explain what to look for")} →</button></div><div class="target-card"><h3>${tr("El pequeño reto de este turno", "This turn’s small challenge")}</h3><p>${esc(gameMessage())}</p>${en() ? `<div class="voice-card table-voice" data-voice-id="table-instruction"><button class="text-button" data-speak="table-instruction" ${speech.supported ? "" : "disabled"}>Listen to this instruction</button></div>` : ""}<button class="text-button" data-action="language">${en() ? "Volver al español" : "Probar la mesa en inglés"} →</button></div></aside></div>`;
 }
 function finishedHand() {
   if (game.winner === null)
@@ -768,6 +892,7 @@ function startGame(mode = "guided", patternId) {
   $("#table-announcement").textContent = "";
   selected.clear();
   showHint = false;
+  hintMarked = false;
   save();
   closeDialog();
   go("mesa" + (en() ? "/en" : ""));
@@ -787,6 +912,7 @@ function gameAction(action, arg) {
     if (action === "win") declareMahjong(game);
     selected.clear();
     showHint = false;
+    hintMarked = false;
     save();
     tone(
       action === "claim" ? "success" : action === "skip-claim" ? "tap" : action,
@@ -804,9 +930,14 @@ function gameAction(action, arg) {
     tone(false);
   }
 }
-function advise() {
+function advise(mark = false) {
   if (!game) return;
   showHint = true;
+  hintMarked = mark;
+  if (!mark) {
+    render();
+    return;
+  }
   selected.clear();
   const player = game.players[0],
     a = analyzeHand(player.hand, currentPattern(), player.exposed);
@@ -860,6 +991,7 @@ function reviewPage() {
     profile,
     speechSupported: speech.supported,
     category: vocabularyCategory,
+    expanded: vocabularyExpanded,
   });
 }
 function render(motion = null) {
@@ -878,22 +1010,26 @@ function render(motion = null) {
           ? cardPage()
           : page === "repaso"
             ? reviewPage()
-            : page === "escuchar"
-              ? (() => {
-                  const { lesson, index, key } = currentListening();
-                  return renderListeningLesson({
-                    lesson,
-                    stepIndex: index,
-                    selectedId: listeningChoice,
-                    feedback: listeningFeedback,
-                    showText: listeningShowText,
-                    speechSupported: speech.supported,
-                    hasListened: listenedSteps.has(key),
-                    profile,
-                  });
-                })()
-              : home();
+            : page === "practica"
+              ? readinessPage()
+              : page === "escuchar"
+                ? (() => {
+                    const { lesson, index, key } = currentListening();
+                    return renderListeningLesson({
+                      lesson,
+                      stepIndex: index,
+                      selectedId: listeningChoice,
+                      feedback: listeningFeedback,
+                      showText: listeningShowText,
+                      speechSupported: speech.supported,
+                      hasListened: listenedSteps.has(key),
+                      profile,
+                    });
+                  })()
+                : home();
   $("#app").innerHTML = frame(body);
+  const discardTray = $(".discard-tray");
+  if (discardTray) discardTray.scrollTop = discardTray.scrollHeight;
   updateSpeechUI(speechState);
   if (motion) animateTiles(before, { root: motionRoot, ...motion });
   document.documentElement.lang = en() && page === "mesa" ? "en" : "es";
@@ -904,9 +1040,11 @@ function render(motion = null) {
         ? "Tu mesa de práctica"
         : page === "tarjeta"
           ? "Mi tarjeta"
-          : page === "escuchar" || page === "repaso"
-            ? "Escucha y reconoce"
-            : "Mahjong") + " · A tu ritmo";
+          : page === "practica"
+            ? "Probar mis decisiones"
+            : page === "escuchar" || page === "repaso"
+              ? "Escucha y reconoce"
+              : "Mahjong") + " · A tu ritmo";
   turnPlayer.sync();
 }
 function openDialog(html) {
@@ -958,6 +1096,8 @@ function updateHandSelection() {
   }
   const hint = $(".inline-hint");
   if (hint) hint.textContent = shortHint();
+  const coachHint = $(".hint-card > p");
+  if (showHint && coachHint) coachHint.textContent = shortHint();
 }
 function chooseTile(button) {
   const [page] = route();
@@ -969,6 +1109,9 @@ function chooseTile(button) {
     tone("tap");
     feedback = null;
     render({ action: "selection" });
+    $(`[data-exercise-tile="${i}"] button.tile`)?.focus({
+      preventScroll: true,
+    });
     return;
   }
   if (page === "mesa" && button.closest("#hand")) {
@@ -987,6 +1130,7 @@ function chooseTile(button) {
       if (game.phase !== "charleston") selected.clear();
       if (selected.size < 3) selected.add(id);
     }
+    hintMarked = false;
     updateHandSelection();
     tone("tap");
     return;
@@ -1026,6 +1170,46 @@ function chooseTile(button) {
   }
 }
 document.addEventListener("click", (event) => {
+  const review = event.target.closest("[data-review-lesson]");
+  if (review) {
+    event.preventDefault();
+    const id = review.dataset.reviewLesson;
+    if (!LESSONS.some((lesson) => lesson.id === id)) return;
+    if (route()[0] === "practica") {
+      const { practice, step } = currentReadiness();
+      if (step) practice.helped[step.id] = true;
+    }
+    profile.steps[id] = 0;
+    save();
+    go("leccion/" + id);
+    return;
+  }
+  const jump = event.target.closest("[data-scroll-to]");
+  if (jump) {
+    const target = document.getElementById(jump.dataset.scrollTo);
+    target?.scrollIntoView({
+      block: "start",
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+    target?.focus({ preventScroll: true });
+    return;
+  }
+  const decision = event.target.closest("[data-readiness-choice]");
+  const reason = event.target.closest("[data-readiness-reason]");
+  if (decision || reason) {
+    if (decision) readinessChoice = decision.dataset.readinessChoice;
+    if (reason) readinessReason = reason.dataset.readinessReason;
+    readinessFeedback = null;
+    tone("tap");
+    render();
+    const key = decision ? "data-readiness-choice" : "data-readiness-reason";
+    $(
+      `[${key}="${CSS.escape(decision ? readinessChoice : readinessReason)}"]`,
+    )?.focus({ preventScroll: true });
+    return;
+  }
   const restart = event.target.closest("[data-restart-listening]");
   if (restart) {
     event.preventDefault();
@@ -1057,6 +1241,7 @@ document.addEventListener("click", (event) => {
   if (category) {
     speech.stop();
     vocabularyCategory = category.dataset.vocabCategory;
+    vocabularyExpanded = false;
     tone("tap");
     render();
     $(`[data-vocab-category="${vocabularyCategory}"]`)?.focus({
@@ -1157,6 +1342,43 @@ document.addEventListener("click", (event) => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const action = button.dataset.action;
+  if (action === "vocab-expand") {
+    vocabularyExpanded = !vocabularyExpanded;
+    render();
+    $('[data-action="vocab-expand"]')?.focus({ preventScroll: true });
+    if (!vocabularyExpanded)
+      $("#biblioteca")?.scrollIntoView({ block: "start" });
+    return;
+  }
+  if (action === "lesson-hint") {
+    lessonHintVisible = true;
+    render();
+    return;
+  }
+  if (action === "readiness-check") return checkReadiness();
+  if (action === "readiness-next") return nextReadiness();
+  if (action === "readiness-hint") {
+    const { practice, step } = currentReadiness();
+    if (!step) return;
+    practice.helped[step.id] = true;
+    save();
+    render();
+    return;
+  }
+  if (action === "readiness-repeat") {
+    profile.decisionPractice = {
+      variant: profile.decisionPractice.variant + 1,
+      index: 0,
+      results: [],
+      failures: {},
+      helped: {},
+    };
+    save();
+    resetInteraction();
+    render();
+    window.scrollTo(0, 0);
+    return;
+  }
   if (action === "voice-stop") return speech.stop();
   if (action === "listening-check") return checkListening();
   if (action === "listening-reveal") {
@@ -1231,6 +1453,7 @@ document.addEventListener("click", (event) => {
     render({ action: "sort" });
   }
   if (action === "advice") advise();
+  if (action === "mark-suggestion") advise(true);
   if (action === "language") {
     lang = en() ? "es" : "en";
     save();
@@ -1278,8 +1501,17 @@ document.addEventListener("click", (event) => {
     profile.listeningSteps = {};
     profile.listeningCompleted = [];
     profile.audioHeard = [];
+    profile.decisionPractice = {
+      variant: 0,
+      index: 0,
+      results: [],
+      failures: {},
+      helped: {},
+    };
     listenedSteps.clear();
     game = null;
+    showHint = false;
+    hintMarked = false;
     tableChange = null;
     save();
     closeDialog();
@@ -1289,10 +1521,11 @@ document.addEventListener("click", (event) => {
 });
 document.addEventListener("change", (event) => {
   if (event.target.id === "target-select") {
-    if (game.phase === "bots") return;
+    if (["bots", "claim"].includes(game.phase)) return;
     game.players[0].targetId = event.target.value;
     selected.clear();
     showHint = false;
+    hintMarked = false;
     save();
     render();
   }

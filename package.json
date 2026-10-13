@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.js",
-    "check": "node --check src/app.js && node --check src/engine.js && node --check src/tiles.js && node --check src/lessons.js && node --check src/motion.js && node --check src/turn-player.js && node --check src/english.js && node --check src/listening-ui.js && node --check src/speech.js && node --check src/sounds.js"
+    "check": "node --check src/app.js && node --check src/engine.js && node --check src/tiles.js && node --check src/lessons.js && node --check src/motion.js && node --check src/turn-player.js && node --check src/english.js && node --check src/listening-ui.js && node --check src/speech.js && node --check src/sounds.js && node --check src/guidance.js && node --check src/readiness.js && node --check src/readiness-ui.js"
   },
   "engines": {
     "node": ">=22"

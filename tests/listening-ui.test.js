@@ -261,3 +261,75 @@ test("progress lets the learner resume, repeat a finished unit, and reach the ne
     else assert.ok(openingButton(completed, "data-action", "english-game"));
   }
 });
+
+test("the sound library comes first and starts with a manageable set of six sounds", () => {
+  const html = renderEnglishHome();
+  const library = html.indexOf('id="biblioteca"');
+  const goals = html.indexOf('id="metas"');
+  assert.ok(library >= 0 && goals > library);
+  assert.equal(
+    (html.match(/class="voice-card vocabulary-card"/g) || []).length,
+    6,
+  );
+  const expand = openingButton(html, "data-action", "vocab-expand");
+  assert.ok(expand.includes('aria-expanded="false"'));
+  assert.ok(expand.includes('aria-controls="vocabulary-list"'));
+  assert.ok(html.includes('id="vocabulary-list"'));
+  assert.ok(html.includes('aria-labelledby="biblioteca-title"'));
+  assert.ok(html.includes('aria-labelledby="metas-title"'));
+});
+
+test("expanding and filtering preserve access to every sound without duplicating the challenges", () => {
+  for (const category of ["tile", "group", "call", "all"]) {
+    const words = VOCAB.filter(
+      (word) => category === "all" || word.kind === category,
+    );
+    const compact = renderEnglishHome({ category });
+    const expanded = renderEnglishHome({ category, expanded: true });
+    assert.equal(
+      (compact.match(/class="voice-card vocabulary-card"/g) || []).length,
+      Math.min(6, words.length),
+    );
+    assert.equal(
+      (expanded.match(/class="voice-card vocabulary-card"/g) || []).length,
+      words.length,
+    );
+    for (const word of words)
+      assert.ok(expanded.includes(`data-voice-id="${word.id}"`));
+    assert.equal(
+      (
+        expanded.match(/<article class="listening-unit(?: is-complete)?"/g) ||
+        []
+      ).length,
+      LISTENING_LESSONS.length,
+    );
+    const collapse = openingButton(expanded, "data-action", "vocab-expand");
+    if (words.length > 6) assert.ok(collapse.includes('aria-expanded="true"'));
+    else assert.equal(collapse, undefined);
+  }
+});
+
+test("library and challenge shortcuts scroll within the page without colliding with the hash router", () => {
+  const html = renderEnglishHome();
+  for (const section of ["biblioteca", "metas"]) {
+    assert.ok(openingButton(html, "data-scroll-to", section));
+    assert.ok(html.includes(`id="${section}"`));
+    assert.ok(!html.includes(`href="#${section}"`));
+  }
+});
+
+test("only picture-only answers receive the compact visual layout", () => {
+  for (const lesson of LISTENING_LESSONS) {
+    for (const [stepIndex, step] of lesson.steps.entries()) {
+      const html = renderListeningLesson({ lesson, stepIndex });
+      const allPictures = step.choices.every(
+        (choice) => choice.tiles?.length && !choice.label,
+      );
+      assert.equal(
+        html.includes('class="listening-choices is-pictures"'),
+        allPictures,
+        `${step.id}: written answers keep enough space for their full meaning`,
+      );
+    }
+  }
+});

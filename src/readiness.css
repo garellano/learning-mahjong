@@ -1,0 +1,323 @@
+.readiness-page {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.readiness-page .back-link {
+  margin-bottom: 12px;
+}
+.readiness-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.readiness-heading .eyebrow {
+  margin-bottom: 5px;
+}
+.readiness-heading h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 2.6vw, 2.05rem);
+  line-height: 1.18;
+}
+.readiness-count {
+  flex-shrink: 0;
+  border: 1px solid #cbd5c8;
+  border-radius: 12px;
+  padding: 9px 13px;
+  font-size: 0.95rem;
+}
+.readiness-intro {
+  margin: 9px 0 12px;
+  color: #566b61;
+  line-height: 1.45;
+}
+.readiness-progress {
+  margin-bottom: 18px;
+}
+.readiness-challenge {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+}
+.readiness-context {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+.readiness-context-card {
+  padding: 13px 15px;
+  border: 1px solid #d6ddd1;
+  border-radius: 16px;
+  background: #fffdf7;
+}
+.readiness-context-card h2 {
+  margin: 0 0 10px;
+  font: inherit;
+  font-size: 0.93rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.readiness-target {
+  background: #f0f4ec;
+}
+.readiness-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px;
+}
+.readiness-tile {
+  display: inline-block;
+  flex: 0 0 32px;
+  width: 32px;
+  line-height: 0;
+}
+.readiness-tile svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.readiness-tile-group {
+  display: inline-flex;
+  gap: 2px;
+  padding: 0 3px 4px 0;
+  border-bottom: 2px solid #bdcdb6;
+}
+.readiness-tile-group .readiness-tile {
+  flex-basis: 32px;
+  width: 32px;
+}
+.readiness-original {
+  margin: 0 2px;
+  line-height: 1.4;
+}
+.readiness-decision {
+  min-width: 0;
+}
+.readiness-decision > h2 {
+  margin: 0 0 12px;
+  font-family: inherit;
+  font-size: 1.08rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.readiness-decision fieldset {
+  min-width: 0;
+  padding: 0;
+  margin: 0 0 13px;
+  border: 0;
+}
+.readiness-decision legend {
+  padding: 0;
+  margin: 0 0 7px;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+.readiness-options {
+  display: grid;
+  gap: 7px;
+}
+.readiness-option {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1.5px solid #b8c9b9;
+  border-radius: 12px;
+  background: #fffefa;
+  color: #234a45;
+  text-align: left;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  cursor: pointer;
+  box-shadow: 0 2px 0 #dce3d6;
+}
+.readiness-option:hover {
+  border-color: #497b63;
+  background: #f3f7ef;
+}
+.readiness-option.is-selected {
+  border-color: #195447;
+  background: #e7f0e2;
+  box-shadow: inset 0 0 0 1px #195447;
+}
+.readiness-option:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.readiness-option-mark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 21px;
+  width: 21px;
+  height: 21px;
+  border: 1.5px solid #8fa68f;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.is-selected .readiness-option-mark {
+  background: #195447;
+  border-color: #195447;
+  color: #fff;
+}
+.readiness-hint-button {
+  min-height: 44px;
+  padding: 8px 2px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.readiness-hint {
+  padding: 13px 15px;
+  border-left: 3px solid #a58b42;
+  border-radius: 8px;
+  background: #f6f0de;
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+.readiness-hint p {
+  margin: 5px 0 0;
+}
+.readiness-decision .feedback {
+  margin-top: 12px;
+  padding: 13px 15px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.readiness-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-top: 15px;
+  padding: 12px 0;
+}
+.readiness-actions .btn {
+  min-height: 48px;
+}
+.readiness-complete {
+  max-width: 800px;
+}
+.readiness-complete h1 {
+  margin: 0 0 16px;
+  font-size: clamp(2.2rem, 5vw, 3.25rem);
+}
+.readiness-complete > p {
+  line-height: 1.55;
+}
+.readiness-reflection {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 22px 0 10px;
+}
+.readiness-reflection p {
+  margin: 0;
+  padding: 15px;
+  border: 1px solid #d6ddd1;
+  border-radius: 14px;
+  background: #fffdf7;
+  font-size: 0.94rem;
+  line-height: 1.4;
+}
+.readiness-reflection strong {
+  display: block;
+  font-size: 1.8rem;
+  color: #195447;
+}
+.readiness-next {
+  margin: 25px 0;
+}
+.readiness-next h2 {
+  margin-bottom: 8px;
+  font-size: 1.5rem;
+}
+.readiness-review-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 12px;
+}
+.readiness-review-links .btn {
+  min-height: 48px;
+  font-size: 0.94rem;
+}
+@media (min-width: 960px) {
+  .readiness-challenge {
+    grid-template-columns: 0.98fr 1.02fr;
+  }
+}
+@media (min-width: 960px) and (max-height: 820px) {
+  .readiness-page .back-link {
+    margin-bottom: 4px;
+  }
+  .readiness-intro {
+    margin: 6px 0 8px;
+  }
+  .readiness-progress {
+    margin-bottom: 12px;
+  }
+  .readiness-actions {
+    margin-top: 8px;
+    padding: 8px 0;
+  }
+}
+@media (max-width: 600px) {
+  .readiness-heading {
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .readiness-heading h1 {
+    font-size: 1.6rem;
+  }
+  .readiness-count {
+    padding: 7px 9px;
+    font-size: 0.85rem;
+  }
+  .readiness-context-card {
+    padding: 12px;
+  }
+  .readiness-tile {
+    flex-basis: 32px;
+    width: 32px;
+  }
+  .readiness-tile-group .readiness-tile {
+    flex-basis: 32px;
+    width: 32px;
+  }
+  .readiness-challenge {
+    gap: 19px;
+  }
+  .readiness-option {
+    min-height: 52px;
+    font-size: 1rem;
+  }
+  .readiness-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .readiness-actions .btn,
+  .readiness-actions .text-button {
+    width: 100%;
+    text-align: center;
+  }
+  .readiness-reflection {
+    grid-template-columns: 1fr;
+  }
+  .readiness-reflection p {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .readiness-reflection strong {
+    flex: 0 0 24px;
+  }
+  .readiness-review-links,
+  .readiness-complete > .button-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

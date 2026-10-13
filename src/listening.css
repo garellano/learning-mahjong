@@ -52,6 +52,34 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
+.listening-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 30px;
+}
+.listening-library,
+.listening-goals {
+  scroll-margin-top: 24px;
+}
+.listening-library:focus,
+.listening-goals:focus {
+  outline: none;
+}
+.listening-goals {
+  margin-top: 44px;
+}
+.vocabulary-library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin-top: 22px;
+}
+.vocabulary-library-actions > .small {
+  flex: 1;
+  min-width: 160px;
+}
 .listening-unit {
   display: flex;
   flex-direction: column;
@@ -102,7 +130,7 @@
   align-self: flex-start;
 }
 .listening-dictionary-title {
-  margin-top: 54px;
+  margin-top: 0;
 }
 .listening-dictionary-title .eyebrow {
   margin-bottom: 12px;
@@ -569,6 +597,77 @@
     transform: scaleY(0.4);
   }
 }
+@media (min-width: 1051px) {
+  .vocabulary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .vocabulary-card {
+    padding: 20px;
+  }
+  .vocabulary-visual {
+    min-height: 88px;
+    gap: 9px;
+  }
+}
+@media (min-width: 1051px) and (max-height: 900px) {
+  .listening-home .page-title {
+    margin-bottom: 22px;
+  }
+  .listening-home .page-title h1 {
+    font-size: 2.6rem;
+    line-height: 1.1;
+  }
+  .listening-welcome {
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .listening-welcome-symbol {
+    width: 54px;
+    height: 54px;
+  }
+  .listening-welcome h2 {
+    font-size: 1.8rem;
+  }
+  .listening-section-nav {
+    margin-bottom: 24px;
+  }
+  .listening-lesson .back-link {
+    margin-bottom: 0;
+  }
+  .listening-lesson-heading {
+    margin: 8px 0 18px;
+  }
+  .listening-lesson-heading .eyebrow {
+    margin-bottom: 10px;
+  }
+  .listening-lesson-heading h1 {
+    font-size: 2.5rem;
+    line-height: 1.1;
+  }
+  .listening-lesson-track {
+    margin-bottom: 20px;
+  }
+  .listening-player {
+    padding: 22px;
+  }
+  .listening-player-head {
+    margin-bottom: 16px;
+  }
+  .listening-player h2 {
+    font-size: 2rem;
+  }
+  .listening-player > p {
+    margin-bottom: 18px;
+  }
+  .listening-actions {
+    margin-top: 14px;
+    padding-top: 14px;
+  }
+  .listening-gentle-tip {
+    margin-top: 12px;
+  }
+}
 @media (max-width: 760px) {
   .listening-welcome {
     flex-wrap: wrap;
@@ -609,7 +708,7 @@
   .listening-player .voice-buttons .btn {
     padding: 13px 18px;
   }
-  .listening-choices {
+  .listening-choices.is-pictures {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
@@ -655,7 +754,7 @@
     margin-bottom: 15px;
   }
   .listening-dictionary-title {
-    margin-top: 39px;
+    margin-top: 0;
   }
   .listening-dictionary-title h2 {
     font-size: 2rem;
@@ -663,6 +762,32 @@
   .listening-heard {
     display: block;
     margin: -4px 0 8px;
+  }
+  .listening-dictionary-title,
+  .listening-goals > .section-line {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .listening-section-nav {
+    gap: 9px;
+    margin-bottom: 27px;
+  }
+  .listening-section-nav .btn {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .vocabulary-library-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .vocabulary-library-actions > .small {
+    min-width: 0;
+    flex: none;
+  }
+  .vocabulary-library-actions .text-button {
+    text-align: left;
   }
   .vocabulary-filters {
     gap: 7px;
@@ -689,24 +814,51 @@
   }
   .listening-lesson-heading {
     display: block;
-    margin-top: 12px;
+    margin: 8px 0 16px;
+  }
+  .listening-lesson-heading h1 {
+    font-size: 2rem;
+    line-height: 1.1;
   }
   .listening-lesson-heading .eyebrow {
     font-size: 10px;
+    margin-bottom: 10px;
   }
   .listening-step-count {
     display: block;
     padding: 0;
-    margin-top: 17px;
+    margin-top: 10px;
   }
   .listening-lesson-track {
-    margin-bottom: 23px;
+    margin-bottom: 18px;
   }
   .listening-player {
-    padding: 22px;
+    padding: 17px;
+  }
+  .listening-player-head {
+    margin-bottom: 10px;
   }
   .listening-player h2 {
-    font-size: 2.1rem;
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+  }
+  .listening-player > p {
+    margin-bottom: 13px;
+  }
+  .listening-player .voice-status {
+    margin-top: 8px;
+    font-size: 12px;
+  }
+  .listening-player .listening-reveal {
+    margin-top: 8px;
+    padding: 9px 0;
+    min-height: 44px;
+  }
+  .listening-player .voice-play {
+    min-height: 48px;
+  }
+  .listening-exercise {
+    gap: 20px;
   }
   .listening-player .voice-buttons {
     gap: 8px;
@@ -717,6 +869,27 @@
   .listening-choices {
     display: flex;
     flex-direction: column;
+  }
+  .listening-choices.is-pictures {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .listening-choices.is-pictures .listening-choice {
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    min-height: 113px;
+    padding: 13px 7px;
+    gap: 10px;
+  }
+  .listening-choices.is-pictures .listening-tiles {
+    justify-content: center;
+    gap: 4px;
+  }
+  .listening-choices.is-pictures .tile {
+    width: 32px;
+    height: 45px;
   }
   .listening-choice {
     flex-direction: row;
@@ -736,6 +909,8 @@
   }
   .listening-actions {
     gap: 10px;
+    margin-top: 20px;
+    padding-top: 18px;
   }
   .listening-actions .btn {
     font-size: 12px;

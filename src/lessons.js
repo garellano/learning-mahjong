@@ -74,7 +74,7 @@ export const LESSONS = [
           type: "select",
           prompt: "Toca el comodín.",
           answer: [4],
-          success: "Ya conoces todas las clases de fichas.",
+          success: "Identificaste el comodín entre las fichas especiales.",
           explanation:
             "El comodín es la ficha del gorro. Pronto verás cuándo puede ayudarte.",
         },
@@ -245,6 +245,11 @@ export const LESSONS = [
         title: "Los colores cuentan familias",
         text: "En la tarjeta, un mismo color suele indicar la misma familia; colores diferentes piden familias diferentes. Verde impreso no significa obligatoriamente bambúes.",
         tip: "Lee siempre las notas de la línea: pueden limitar números, familias o dragones.",
+        cardGroups: [
+          { label: "Verde: aquí elegimos círculos", color: "green", tiles: ["c2", "c2"] },
+          { label: "Azul: aquí elegimos bambúes", color: "blue", tiles: ["b4", "b4"] },
+          { label: "Rojo: aquí elegimos caracteres", color: "red", tiles: ["k6", "k6"] },
+        ],
         tiles: ["c2", "c2", "b4", "b4", "k6", "k6"],
         task: {
           type: "choice",
@@ -330,7 +335,7 @@ export const LESSONS = [
       {
         title: "Para terminar, tres a tu izquierda",
         text: "El tercer pase cierra la primera ronda: tres fichas a tu izquierda. Puedes revisar tu objetivo después de cada grupo que recibes.",
-        tip: "En el último pase de cada ronda se permite pasar fichas recién recibidas sin mirarlas. Aquí empezamos con pases vistos.",
+        tip: "En esta primera práctica miramos las fichas que recibes. Más abajo encontrarás las otras opciones de una mesa real.",
         tiles: ["c9", "b6", "k2"],
         task: {
           type: "choice",
@@ -347,41 +352,54 @@ export const LESSONS = [
         },
       },
       {
-        title: "Una segunda ronda, si todas quieren",
-        text: "Antes de empezar la segunda ronda, cualquier jugadora puede detener el intercambio. Si todas continúan, se hacen sus tres pases: izquierda, frente y derecha.",
-        tiles: ["b7", "c8", "wn"],
+        title: "Lo que llega puede mejorar tu plan",
+        text: "Acabas de recibir tres fichas. Compara las nuevas con el grupo que buscas y las dos que ya conservaste. Una de las recién llegadas completa tu trío.",
+        tip: "Recibir no significa guardar todo. Primero mira qué encaja con tu objetivo.",
+        contextSections: [
+          { label: "Grupo que buscas: tres 2 de círculos", tiles: ["c2", "c2", "c2"] },
+          { label: "Ya conservaste estas dos fichas", tiles: ["c2", "c2"] },
+        ],
+        tiles: ["b7", "c2", "wn"],
         task: {
-          type: "choice",
-          prompt: "¿Debes aceptar una segunda ronda si prefieres parar?",
-          answer: "parar",
-          options: [
-            { id: "seguir", label: "Sí, siempre hay dos rondas obligatorias" },
-            { id: "parar", label: "No, puedo detenerla antes de que empiece" },
-          ],
-          success: "También puedes decidir conservar tu mano.",
+          type: "select",
+          prompt: "Estas son las tres fichas nuevas. Toca la que conservarías para completar el trío.",
+          answer: [1],
+          success: "El 2 de círculos se une a tus otros dos: trío completo.",
           explanation:
-            "La segunda ronda es opcional. Si se inicia, se completan sus tres pases; no se detiene a la mitad.",
+            "Buscas tres 2 de círculos y ya tenías dos. El nuevo 2 completa ese grupo; el 7 de bambúes y el norte no sirven para este grupo.",
         },
       },
       {
-        title: "El último intercambio es un acuerdo",
-        text: "Al final, tú y la jugadora de enfrente pueden acordar un intercambio de cortesía: de cero a tres fichas. Se pasa la cantidad menor que ambas quieran.",
-        tip: "Tampoco aquí se pasan comodines. Después comienza la partida.",
-        tiles: ["c7", "b9", "j"],
+        title: "Prueba otra elección de pase",
+        text: "Este es otro ejemplo, antes de un pase de tres. Ya elegiste dos fichas para pasar. De las tres opciones de abajo, toca la tercera que dejarías ir. Tu plan necesita tres 4 de bambúes y una pareja de flores.",
+        tip: "Este es un ejemplo nuevo para comparar; no es un cuarto pase de la primera ronda.",
+        contextSections: [
+          { label: "Grupos que buscas", tiles: ["b4", "b4", "b4", "f", "f"] },
+          { label: "Estas dos ya están elegidas para pasar", tiles: ["k9", "ww"] },
+        ],
+        tiles: ["b4", "c7", "f"],
         task: {
-          type: "choice",
-          prompt:
-            "Tú quieres pasar tres y enfrente quieren pasar una. ¿Cuántas intercambian?",
-          answer: "una",
-          options: [
-            { id: "tres", label: "Tres fichas cada una" },
-            { id: "una", label: "Una ficha cada una" },
-            { id: "cuatro", label: "Cuatro fichas en total" },
-          ],
-          success: "Una cada una: el acuerdo es mutuo.",
+          type: "select",
+          prompt: "¿Qué ficha añadirías a las dos que vas a pasar?",
+          answer: [1],
+          success: "Pasas el 7 de círculos y conservas las fichas que tu plan necesita.",
           explanation:
-            "Se usa la cantidad menor. También pueden acordar no intercambiar nada.",
+            "El 4 de bambúes y la flor pertenecen a los grupos que buscas. El 7 de círculos queda fuera: con el 9 de caracteres y el oeste, completas las tres fichas para pasar.",
         },
+      },
+    ],
+    extraRules: [
+      {
+        title: "Una segunda ronda, si todas quieren",
+        text: "Después de la primera ronda, cualquier jugadora puede detener el intercambio antes de que se miren las fichas del siguiente pase. Si todas continúan, completan otros tres pases: izquierda, frente y derecha.",
+      },
+      {
+        title: "El pase a ciegas",
+        text: "En el último pase de cada ronda puedes usar una, dos o tres fichas que estás recibiendo, sin mirarlas, para completar tus tres fichas de salida. Esta mesa de práctica empieza con pases vistos.",
+      },
+      {
+        title: "Un último intercambio por acuerdo",
+        text: "Al final, tú y la jugadora de enfrente pueden intercambiar de cero a tres fichas. Se usa la cantidad menor que ambas quieran. Si tú quieres tres y ella una, pasan una cada una. Tampoco aquí se pasan comodines.",
       },
     ],
   },
@@ -431,22 +449,28 @@ export const LESSONS = [
         },
       },
       {
-        title: "Lo que muestras se queda en la mesa",
-        text: "Al pedir un descarte para formar un grupo, lo colocas visible junto con las fichas que lo completan. Es un grupo expuesto: las demás jugadoras pueden verlo.",
-        tip: "Tras dejar terminado tu turno, no puedes guardar el grupo otra vez ni convertirlo en otro. Un comodín sí puede cambiarse por su ficha correspondiente.",
-        tiles: ["b6", "b6", "b6"],
+        title: "Pide, muestra y después descarta",
+        text: "Tu objetivo permite mostrar un trío de 6 de bambúes. Tienes dos y acaban de descartar el tercero: puedes pedirlo y mostrar los tres juntos. Ese grupo queda visible; sigue contando como parte de tus 14 fichas.",
+        tip: "Al pedir un descarte, esa ficha ocupa el lugar de tu toma de la pared. Después de terminar tu turno, el grupo mostrado queda fijo.",
+        contextSections: [
+          { label: "Las dos fichas de tu mano", tiles: ["b6", "b6"] },
+          { label: "El último descarte que puedes pedir", tiles: ["b6"] },
+          { label: "Así quedan las tres juntas, como grupo mostrado", tiles: ["b6", "b6", "b6"] },
+        ],
+        tiles: [],
         task: {
           type: "choice",
           prompt:
-            "Mostraste este trío. ¿Puedes guardarlo otra vez para cambiar de plan?",
-          answer: "no",
+            "Ya pediste la ficha y mostraste el trío. No completas todavía tu mano ganadora. ¿Qué sigue?",
+          answer: "descartar",
           options: [
-            { id: "si", label: "Sí, en mi siguiente turno" },
-            { id: "no", label: "No, el grupo permanece expuesto" },
+            { id: "tomar", label: "Tomar además otra ficha de la pared" },
+            { id: "descartar", label: "Descartar una ficha de mi mano y conservar el grupo mostrado" },
+            { id: "guardar", label: "Volver a guardar el trío para poder cambiarlo después" },
           ],
-          success: "Mostrar un grupo es una decisión que compromete tu plan.",
+          success: "Ahora descartas una ficha: vuelves a tener 13 en total, contando tu grupo mostrado.",
           explanation:
-            "Un grupo expuesto permanece en la mesa y debe seguir siendo compatible con tu línea objetivo.",
+            "El descarte que pediste fue tu nueva ficha: no tomas otra de la pared. Dejas el trío a la vista y descartas una ficha de la parte oculta. El total vuelve a 13, incluyendo las tres del grupo mostrado. Al terminar el turno ese grupo queda fijo.",
         },
       },
       {
@@ -517,8 +541,12 @@ export const LESSONS = [
       },
       {
         title: "Mira qué te falta",
-        text: "Este ejercicio pide un cuarteto de 3 de círculos. Ya tienes dos 3 y un comodín. Busca todas las fichas que podrían completar el cuarteto.",
+        text: "Compara el grupo que buscas con las fichas que ya tienes. Falta una ficha para completar el cuarteto. Abajo hay distintas opciones: encuentra las dos que podrían ocupar ese lugar.",
         tip: "Es un grupo de cuatro, así que admite comodines.",
+        contextSections: [
+          { label: "Tu objetivo: cuatro 3 de círculos", tiles: ["c3", "c3", "c3", "c3"] },
+          { label: "Ya tienes: dos 3 de círculos y un comodín", tiles: ["c3", "c3", "j"] },
+        ],
         tiles: ["c3", "b3", "j", "k3"],
         task: {
           type: "select",
@@ -574,7 +602,7 @@ export const LESSONS = [
               label: "Compruebo toda la línea y sus condiciones",
             },
           ],
-          success: "Lista para una partida de práctica acompañada.",
+          success: "Antes de anunciar victoria, revisas toda la línea y sus condiciones.",
           explanation:
             "La mano debe coincidir por completo con una línea válida. Esta mano es un ejemplo original para entrenar esa revisión.",
         },
@@ -653,7 +681,7 @@ export const LESSONS = [
       {
         title: "Las palabras de una partida",
         audioIds: ["draw", "discard", "call", "mahjong", "your-turn"],
-        text: "Draw es tomar una ficha; Discard es descartar; Call es pedir un descarte. Para anunciar una mano completa dices Mahjong. Ya puedes probar la mesa en inglés.",
+        text: "Draw es tomar una ficha; Discard es descartar; Call es pedir un descarte. Para anunciar una mano completa dices Mahjong. Practica una instrucción que oirás en la mesa.",
         tip: "Exposed es expuesto y Concealed es oculto: las letras X y C de la tarjeta.",
         tiles: ["c8", "b6", "k1"],
         task: {
@@ -665,7 +693,7 @@ export const LESSONS = [
             { id: "descartar", label: "Elegir una ficha y descartarla" },
             { id: "ganar", label: "Anunciar que gané" },
           ],
-          success: "Ya puedes jugar con las palabras en inglés.",
+          success: "Reconociste Discard a tile: te pide descartar una ficha.",
           explanation:
             "Discard a tile significa descarta una ficha. Las decisiones del juego son las mismas que ya practicaste en español.",
         },

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { LESSONS } from "../src/lessons.js";
-import { createWall } from "../src/engine.js";
+import { analyzeHand, createWall, TRAINING_PATTERNS } from "../src/engine.js";
 import { tileFace, tileHTML, tileLabel } from "../src/tiles.js";
 
 const kinds = [...new Set(createWall().map((tile) => tile.kind))];
@@ -26,7 +26,7 @@ test("Cada reto tiene una respuesta comprobable, sin respuestas vacías ni índi
         context,
       );
       assert.ok(
-        step.tiles.length > 0 &&
+        (step.tiles.length > 0 || step.contextSections?.length > 0) &&
           step.tiles.every((kind) => kinds.includes(kind)),
         context,
       );
@@ -72,6 +72,84 @@ test("Cada reto tiene una respuesta comprobable, sin respuestas vacías ni índi
       }
     }
   }
+});
+
+test("Las referencias visuales separan lo que se busca, la mano y las opciones seleccionables", () => {
+  for (const lesson of LESSONS) {
+    for (const step of lesson.steps) {
+      for (const section of step.contextSections || []) {
+        assert.ok(section.label && section.tiles.length, step.title);
+        assert.ok(section.tiles.every((kind) => kinds.includes(kind)), step.title);
+      }
+      for (const group of step.cardGroups || []) {
+        assert.ok(group.label && group.tiles.length, step.title);
+        assert.ok(["green", "blue", "red"].includes(group.color), step.title);
+        assert.ok(group.tiles.every((kind) => kinds.includes(kind)), step.title);
+      }
+    }
+  }
+  const colors = LESSONS.find((lesson) => lesson.id === "tarjeta").steps[2];
+  assert.equal(new Set(colors.cardGroups.map((group) => group.color)).size, 3);
+  assert.equal(new Set(colors.cardGroups.flatMap((group) => group.tiles.map((kind) => kind[0]))).size, 3);
+  // El verde del ejemplo usa círculos: evita enseñar una correspondencia fija con bambúes.
+  assert.ok(colors.cardGroups.find((group) => group.color === "green").tiles.every((kind) => kind.startsWith("c")));
+});
+
+test("Recibir y pasar se deciden por coincidencia con un objetivo visible", () => {
+  const passing = LESSONS.find((lesson) => lesson.id === "charleston");
+  assert.equal(passing.steps.length, 5);
+  const incoming = passing.steps[3];
+  const [goal, kept] = incoming.contextSections;
+  const helpful = incoming.tiles.flatMap((kind, index) =>
+    [...kept.tiles, kind].length === goal.tiles.length &&
+    [...kept.tiles, kind].every((candidate) => candidate === goal.tiles[0])
+      ? [index]
+      : [],
+  );
+  assert.deepEqual(incoming.task.answer, helpful);
+  assert.equal(helpful.length, 1);
+  const nextPass = passing.steps[4];
+  const wanted = new Set(nextPass.contextSections[0].tiles);
+  const outsidePlan = nextPass.tiles.flatMap((kind, index) =>
+    wanted.has(kind) ? [] : [index],
+  );
+  assert.deepEqual(nextPass.task.answer, outsidePlan);
+  assert.equal(nextPass.contextSections[1].tiles.length + outsidePlan.length, 3);
+  assert.ok(!nextPass.tiles.includes("j"));
+  assert.equal(passing.extraRules.length, 3);
+  assert.ok(passing.extraRules.every((rule) => rule.title && rule.text));
+});
+
+test("El caso positivo de reclamo conserva el grupo y continúa con descarte, sin otra toma", () => {
+  const step = LESSONS.find((lesson) => lesson.id === "turnos").steps[2];
+  const [own, discard, shown] = step.contextSections;
+  assert.equal(own.tiles.length, 2);
+  assert.equal(discard.tiles.length, 1);
+  assert.deepEqual(shown.tiles, [...own.tiles, ...discard.tiles]);
+  assert.equal(new Set(shown.tiles).size, 1);
+  assert.equal(step.task.answer, "descartar");
+  assert.ok(step.task.options.some((option) => option.id === "tomar"));
+  assert.match(step.task.explanation, /no tomas otra de la pared/);
+  assert.match(step.task.explanation, /incluyendo las tres del grupo mostrado/);
+});
+
+test("Las dos opciones de completar el cuarteto cumplen la regla real del motor", () => {
+  const step = LESSONS.find((lesson) => lesson.id === "estrategia").steps[1];
+  const [goal, own] = step.contextSections;
+  assert.equal(goal.tiles.length, 4);
+  assert.equal(own.tiles.length, 3);
+  const pattern = TRAINING_PATTERNS.find((candidate) =>
+    candidate.groups.some((group) => group.kind === goal.tiles[0] && group.count === goal.tiles.length),
+  );
+  const remaining = pattern.groups
+    .filter((group) => group.kind !== goal.tiles[0])
+    .flatMap((group) => Array(group.count).fill(group.kind));
+  const validChoices = step.tiles.flatMap((kind, index) => {
+    const hand = [...own.tiles, kind, ...remaining].map((tileKind, serial) => ({ id: `strategy-${serial}`, kind: tileKind }));
+    return analyzeHand(hand, pattern).complete ? [index] : [];
+  });
+  assert.deepEqual(step.task.answer, validChoices);
+  assert.equal(validChoices.length, 2);
 });
 
 test("Las respuestas de reconocimiento seleccionan la familia solicitada y todas sus fichas", () => {
