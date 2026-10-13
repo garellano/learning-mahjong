@@ -223,6 +223,10 @@ export function tileHTML(
     lang = "es",
     id = "",
     disabled = false,
+    motionId = "",
+    motionOrigin = "",
+    recent = false,
+    recentLabel = "",
   } = {},
 ) {
   const classes = [
@@ -230,9 +234,12 @@ export function tileHTML(
     selected && "selected",
     small && "small",
     muted && "muted",
+    recent && "tile-arrival",
   ]
     .filter(Boolean)
     .join(" ");
   const name = tileLabel(kind, lang);
-  return `<button type="button" class="${classes}" data-tile="${escapeHTML(kind)}"${id !== "" ? ` data-id="${escapeHTML(id)}"` : ""} aria-label="${escapeHTML(name)}" aria-pressed="${Boolean(selected)}"${disabled ? " disabled" : ""}>${tileFace(kind, lang)}${label ? `<span class="tile-caption">${escapeHTML(name)}</span>` : ""}</button>`;
+  const accessibleName =
+    recent && recentLabel ? `${name}. ${recentLabel}` : name;
+  return `<button type="button" class="${classes}" data-tile="${escapeHTML(kind)}"${id !== "" ? ` data-id="${escapeHTML(id)}"` : ""}${motionId ? ` data-motion-id="${escapeHTML(motionId)}"` : ""}${motionOrigin ? ` data-motion-origin="${escapeHTML(motionOrigin)}"` : ""} aria-label="${escapeHTML(accessibleName)}"${recent && recentLabel ? ` title="${escapeHTML(recentLabel)}"` : ""} aria-pressed="${Boolean(selected)}"${disabled ? " disabled" : ""}>${tileFace(kind, lang)}${label ? `<span class="tile-caption">${escapeHTML(name)}</span>` : ""}</button>`;
 }

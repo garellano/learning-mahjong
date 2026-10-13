@@ -12,6 +12,7 @@ Una experiencia de aprendizaje de Mahjong Americano para Gaby: primero en españ
 - Comparación entre objetivos compatibles, sugerencia de descarte y lista visual de fichas faltantes. El asesor no consulta manos ocultas ajenas.
 - Repaso de vocabulario y mesa de práctica en inglés.
 - Sonidos opcionales, fichas SVG propias, controles táctiles, foco visible y movimiento reducido.
+- Movimientos de fichas al pasar, recibir, tomar, descartar, ordenar y mostrar grupos. Las fichas del último movimiento tienen un borde dorado y una explicación breve; al seleccionar no se reinicia la señal. La opción de movimiento reducido conserva las señales estáticas.
 
 ## La tarjeta 2026
 
@@ -39,7 +40,7 @@ npm test
 
 La vista local abre en `http://127.0.0.1:4173`. Los recursos usan rutas relativas para funcionar en el subdirectorio de GitHub Pages. Las fuentes de Google son opcionales: hay tipografías locales de respaldo.
 
-`src/engine.js` contiene el motor puro; `src/lessons.js`, las actividades; `src/tiles.js`, los dibujos; `src/app.js`, la experiencia y el guardado local; `src/styles.css`, la presentación adaptable.
+`src/engine.js` contiene el motor puro; `src/lessons.js`, las actividades; `src/tiles.js`, los dibujos; `src/app.js`, la experiencia y el guardado local; `src/styles.css`, la presentación adaptable; `src/motion.js`, los movimientos por identidad de ficha y su limpieza al interrumpirlos.
 
 ## Publicación
 
@@ -49,7 +50,11 @@ El flujo `.github/workflows/pages.yml` comprueba la sintaxis, ejecuta las prueba
 
 22 pruebas automatizadas del motor y contenido: reglas de comodines, grupos fijos, reclamos, 14 fichas exactas, conservación de las 152 fichas durante partidas completas y coherencia de los 33 retos.
 
+Además, siete pruebas de la capa de movimiento comprueban identidades al ordenar, paso entre mano y grupos, limpieza e interrupciones, origen de la pared, señales que no se repiten y movimiento reducido. Los efectos no cambian las reglas ni se guardan como parte de la partida.
+
 Revisión funcional con Chromium: curso completo, respuestas, persistencia, tres pases, turnos, editor personal y cambio al inglés. Revisión táctil con WebKit en 820 × 1180 y revisión visual en 1180 × 900 y 393 × 852, sin desbordamiento horizontal. Estas son simulaciones de navegador, no pruebas en dispositivos físicos.
+
+La revisión del dinamismo incluye los tres pases, permanencia de la marca tras ordenar y seleccionar, entrada desde la pared, grupos reclamados, intercambio de comodín y cancelación al cambiar de pantalla, con Chromium y WebKit y con movimiento reducido en móvil.
 
 ## Privacidad
 
