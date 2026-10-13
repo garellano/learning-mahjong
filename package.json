@@ -1,0 +1,14 @@
+{
+  "name": "mahjong-a-tu-ritmo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check src/app.js && node --check src/engine.js && node --check src/tiles.js && node --check src/lessons.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
