@@ -327,6 +327,7 @@ function finish(state, winner, message) {
   state.winner = winner;
   state.message = message;
   state.claim = null;
+  state.botFlow = null;
   return state;
 }
 
@@ -382,6 +383,9 @@ export function newGame({
     claim: null,
     canExchange: false,
     winningClaimTileId: null,
+    botFlow: null,
+    botEvent: null,
+    botEventSerial: 0,
   };
   if (mode === "guided") {
     // Extraemos 11 fichas útiles de la misma pared, sin crear copias nuevas.
@@ -551,9 +555,55 @@ function botDiscard(state, index) {
   return index;
 }
 
-/** Ejecuta turnos completos hasta la siguiente decisión de la usuaria. */
-function advance(state, from, skipHuman = false) {
-  while (state.phase !== "finished") {
+function botEvent(state, type, player, details = {}) {
+  state.botEventSerial = (state.botEventSerial || 0) + 1;
+  state.botEvent = { type, player, serial: state.botEventSerial, ...details };
+  return state;
+}
+
+/**
+ * Continúa una sola acción visible. No usa temporizadores: la interfaz decide
+ * cuándo continuar. Todo el progreso vive en botFlow para poder guardar y
+ * recuperar una partida incluso entre tomar una ficha y descartarla.
+ * Las fichas tomadas permanecen ocultas en los eventos públicos.
+ */
+export function advanceBotStep(state) {
+  requirePhase(state, "bots");
+  const flow = state.botFlow;
+  if (!flow) throw new Error("No hay un turno de compañera pendiente.");
+
+  if (flow.stage === "draw") {
+    const player = state.players[flow.player];
+    if (!takeFromWall(state, player))
+      return botEvent(state, "end", null, { reason: "wall" });
+    state.botFlow = { stage: "afterDraw", player: flow.player };
+    state.message = `${player.name} tomó una ficha de la pared. Ahora elige qué descartar.`;
+    return botEvent(state, "draw", flow.player);
+  }
+
+  if (flow.stage === "afterDraw") {
+    const player = state.players[flow.player];
+    const p = winningPattern(state, player);
+    if (p) {
+      player.targetId = p.id;
+      finish(
+        state,
+        flow.player,
+        `${player.name} completó su combinación al tomar una ficha y declaró Mahjong.`,
+      );
+      return botEvent(state, "win", flow.player, {
+        tile: { ...player.hand.at(-1) },
+        source: "wall",
+      });
+    }
+    // Tras mostrar la toma, el siguiente paso visible es el descarte.
+    return discardBotStep(state, flow.player);
+  }
+
+  if (flow.stage === "discard") return discardBotStep(state, flow.player);
+
+  if (flow.stage === "resolve") {
+    const { from, skipHuman } = flow;
     const discard = state.discards.at(-1);
     const order = [1, 2, 3].map((n) => (from + n) % 4);
     // Ganar tiene prioridad sobre una exposición ordinaria.
@@ -579,20 +629,29 @@ function advance(state, from, skipHuman = false) {
           canWin: true,
         };
         state.message = `${state.players[from].name} descartó ${tileName(discard.tile.kind)}. ¡Con esa ficha puedes declarar Mahjong!`;
-        return state;
+        state.botFlow = null;
+        return botEvent(state, "claim-option", 0, {
+          tile: { ...discard.tile },
+          from,
+          canWin: true,
+        });
       }
       const winningTile = state.discards.pop().tile;
       state.players[winner.index].hand.push(winningTile);
       // La interfaz mantiene esta ficha visible arriba del soporte al ganar.
       state.winningClaimTileId = winningTile.id;
       state.players[winner.index].targetId = winner.p.id;
-      return finish(
+      finish(
         state,
         winner.index,
         `${state.players[winner.index].name} completó su combinación y declaró Mahjong. Puedes revisar la mano y volver a practicar.`,
       );
+      return botEvent(state, "win", winner.index, {
+        tile: { ...winningTile },
+        from,
+        source: "discard",
+      });
     }
-    let claimed = false;
     for (const index of order) {
       if (index === 0 && skipHuman) continue;
       const options = claimOptions(state, state.players[index], discard.tile);
@@ -602,16 +661,21 @@ function advance(state, from, skipHuman = false) {
         state.turn = 0;
         state.claim = { ...discard, options, canWin: false };
         state.message = `${state.players[from].name} descartó ${tileName(discard.tile.kind)}. Puedes reclamarla para completar y mostrar un grupo.`;
-        return state;
+        state.botFlow = null;
+        return botEvent(state, "claim-option", 0, {
+          tile: { ...discard.tile },
+          from,
+          canWin: false,
+        });
       }
       exposeClaim(state, index, options[0]);
-      from = botDiscard(state, index);
-      claimed = true;
-      break;
-    }
-    if (claimed) {
-      skipHuman = false;
-      continue;
+      state.botFlow = { stage: "discard", player: index };
+      state.message = `${state.players[index].name} reclamó ${tileName(discard.tile.kind)} y mostró un grupo. Ahora debe descartar.`;
+      return botEvent(state, "claim", index, {
+        tile: { ...discard.tile },
+        from,
+        exposureIndex: state.players[index].exposed.length - 1,
+      });
     }
     const next = (from + 1) % 4;
     state.turn = next;
@@ -619,26 +683,35 @@ function advance(state, from, skipHuman = false) {
     if (next === 0) {
       state.phase = "draw";
       state.message = "Es tu turno. Toma una ficha de la pared.";
-      return state;
+      state.botFlow = null;
+      return botEvent(state, "turn", 0);
     }
-    const player = state.players[next];
-    if (!takeFromWall(state, player)) return state;
-    const p = winningPattern(state, player);
-    if (p) {
-      player.targetId = p.id;
-      return finish(
-        state,
-        next,
-        `${player.name} completó su combinación al tomar una ficha y declaró Mahjong.`,
-      );
-    }
-    from = botDiscard(state, next);
-    skipHuman = false;
+    state.canExchange = false;
+    state.botFlow = { stage: "draw", player: next };
+    state.message = `Es el turno de ${state.players[next].name}. Va a tomar una ficha de la pared.`;
+    return botEvent(state, "turn", next);
   }
+  throw new Error("No se reconoce la acción pendiente de la compañera.");
+}
+
+function discardBotStep(state, index) {
+  botDiscard(state, index);
+  const discard = state.discards.at(-1);
+  state.botFlow = { stage: "resolve", from: index, skipHuman: false };
+  state.message = `${state.players[index].name} descartó ${tileName(discard.tile.kind)}.`;
+  return botEvent(state, "discard", index, { tile: { ...discard.tile } });
+}
+
+/** El modo inmediato usa los mismos pasos para conservar las mismas reglas. */
+function advance(state, from, skipHuman = false, deferBots = false) {
+  state.phase = "bots";
+  state.botFlow = { stage: "resolve", from, skipHuman };
+  state.botEvent = null;
+  if (!deferBots) while (state.phase === "bots") advanceBotStep(state);
   return state;
 }
 
-export function discardTile(state, id) {
+export function discardTile(state, id, { deferBots = false } = {}) {
   requirePhase(state, "discard");
   if (state.turn !== 0) throw new Error("Espera a tu turno para descartar.");
   const player = state.players[0];
@@ -654,7 +727,7 @@ export function discardTile(state, id) {
   state.phase = "draw";
   state.canExchange = false;
   state.lastDrawId = null;
-  return advance(state, 0);
+  return advance(state, 0, false, deferBots);
 }
 
 export function claimDiscard(state, groupIndex) {
@@ -674,12 +747,12 @@ export function claimDiscard(state, groupIndex) {
   return state;
 }
 
-export function skipClaim(state) {
+export function skipClaim(state, { deferBots = false } = {}) {
   requirePhase(state, "claim");
   const from = state.claim.player;
   state.claim = null;
   state.phase = "draw";
-  return advance(state, from, true);
+  return advance(state, from, true, deferBots);
 }
 
 export function declareMahjong(state) {

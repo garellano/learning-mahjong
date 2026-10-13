@@ -243,6 +243,28 @@ test("a rerender without another arrival does not repeat the arrival pulse", asy
   assert.equal(target.classList.contains("tile-arrival"), true);
 });
 
+test("a companion draw travels face down without a tile kind or an accessible duplicate", async () => {
+  const s = scene();
+  s.source("wall-source", { left: 100, top: 200, width: 50, height: 40 });
+  s.source("opponent-2", { left: 400, top: 20, width: 120, height: 90 });
+  const before = captureTiles(s.doc);
+  const done = animateTiles(before, {
+    root: s.doc,
+    action: "bot-step",
+    drawPlayer: 2,
+  });
+  const overlay = s.doc.body.children[0];
+  const back = overlay.children[0];
+  assert.equal(overlay.getAttribute("aria-hidden"), "true");
+  assert.equal(back.tagName, "SPAN");
+  assert.equal(back.getAttribute("data-tile"), null);
+  assert.equal(back.getAttribute("data-motion-id"), null);
+  assert.equal(back.children.length, 0);
+  s.finish();
+  await done;
+  assert.equal(s.doc.body.children.length, 0);
+});
+
 test("reduced motion uses a static arrival border without ghosts or movement", async () => {
   const s = scene({ reduced: true });
   s.doc.tiles = [s.tile("departing", 10, 300)];

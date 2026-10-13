@@ -917,6 +917,65 @@ main {
 .opponent {
   text-align: center;
   font-size: 11px;
+  padding: 8px 2px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  min-width: 0;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
+}
+.opponent.is-active {
+  border-color: #e2c783;
+  background: #ffffff12;
+  box-shadow: 0 0 0 2px #e2c78322;
+}
+.opponent.is-active .avatar {
+  background: #f2dfa8;
+  border-color: #e2c783;
+}
+.opponent .turn-label {
+  min-height: 15px;
+}
+.opponent.is-active .turn-label {
+  color: #f2dfa8;
+  font-weight: 600;
+}
+.backs .just-drawn {
+  outline: 2px solid #f8e3ac;
+  outline-offset: 2px;
+}
+.turn-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 10px;
+  color: #c6d8c5;
+}
+.turn-controls button {
+  position: relative;
+  min-height: 44px;
+  border: 1px solid #b6ccaa88;
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: #ffffff0d;
+  color: #fff6dd;
+  font-size: 12px;
+}
+.rack-panel.is-your-turn {
+  border-color: #9ab08d;
+}
+.your-turn-label {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 3px 7px;
+  background: #e7eedf;
+  color: var(--green);
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
 }
 .avatar {
   width: 36px;

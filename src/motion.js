@@ -299,6 +299,7 @@ export function animateTiles(
     action = null,
     incomingIds = [],
     outgoingIds = [],
+    drawPlayer = null,
     direction = "right",
     reducedMotion = windowFor(root).matchMedia?.(
       "(prefers-reduced-motion: reduce)",
@@ -319,6 +320,37 @@ export function animateTiles(
     overlay: null,
   };
   sessions.set(root, session);
+  if (drawPlayer !== null) {
+    const wall =
+      before?.sources?.get("wall-source") || after.sources.get("wall-source");
+    const seat = after.sources.get(`opponent-${drawPlayer}`);
+    if (wall && seat) {
+      // Only the back travels from the wall. A companion's draw stays hidden.
+      const back = documentFor(root).createElement("span");
+      back.className = "tile tile-back";
+      const rect = { left: 0, top: 0, width: 23, height: 34 };
+      fly(
+        session,
+        root,
+        `hidden-draw-${drawPlayer}`,
+        {
+          node: back,
+          rect: centerAt(rect, wall),
+          appearance: {
+            padding: "2px",
+            border: "2px solid #f8e3ac",
+            borderRadius: "4px",
+            background:
+              "repeating-linear-gradient(90deg, #decb99 0px, #decb99 5px, #c2a567 5px, #c2a567 6px)",
+            boxShadow: "0 3px 0 #a78e5a",
+            boxSizing: "border-box",
+          },
+        },
+        centerAt(rect, seat),
+        { fade: true },
+      );
+    }
+  }
   let entranceIndex = 0;
   const exposed = new Set();
   for (const [id, next] of after) {
