@@ -12,6 +12,21 @@ Revisión: 13 de octubre de 2026. Esta web es un recurso didáctico independient
 - [Mahjong 4 Friends: comodines](https://mahjong4friends.com/guides/mah-jongg-joker). Detalla sustituciones y cambios de comodines expuestos.
 - [Mahjong 4 Friends: documentación de su interfaz](https://mahjong4friends.com/pages/faqs/full_documentation.html). Inspiración para ayudas contextuales, ordenación y comparación de objetivos. Mezcla variantes: sus apartados de puntuación china no se aplican a esta web.
 
+## Fuentes del vocabulario y la pronunciación
+
+- [AMJA: fichas y nombres](https://guide.americanmahjonggassociation.com/about-american-mah-jongg/mah-jongg-tiles/): familias, flores, comodines, vientos y dragones; confirma que Soap también nombra al dragón blanco.
+- [AMJA: agrupaciones](https://guide.americanmahjonggassociation.com/about-american-mah-jongg/groupings/): single, pair, pung, kong y quint, sus cantidades y el uso permitido de comodines.
+- [AMJA: desarrollo de los turnos](https://guide.americanmahjonggassociation.com/how-to-play-american-mah-jongg/playing-the-game/), [petición de descartes](https://guide.americanmahjonggassociation.com/how-to-play-american-mah-jongg/claiming-discarded-tile-exposure/) e [intercambio inicial](https://guide.americanmahjonggassociation.com/how-to-play-american-mah-jongg/the-charleston/): acciones y contexto de las frases de la mesa.
+- [Cambridge Dictionary: pronunciaciones](https://dictionary.cambridge.org/pronunciation/), [wind](https://dictionary.cambridge.org/pronunciation/english/wind), [discard](https://dictionary.cambridge.org/pronunciation/english/discard), [pair](https://dictionary.cambridge.org/us/pronunciation/english/pair) y [mah-jongg](https://dictionary.cambridge.org/us/pronunciation/english/mah-jongg): referencias de pronunciación inglesa, distinción entre sustantivo y verbo, y acento de las palabras. Los audios del diccionario no se copian ni se redistribuyen en la web.
+
+La ampliación consta de **cuatro unidades, 24 retos y 32 términos o frases**. Las actividades de escucha se añaden después del aprendizaje inicial en español: reconocer familias y fichas, distinguir vientos y dragones, asociar los grupos conocidos con sus nombres y comprender instrucciones o anuncios de las compañeras. Las opciones muestran dibujos o significados en español; la escritura inglesa se revela al responder o al pedir ayuda.
+
+La reproducción sigue las interfaces [SpeechSynthesis](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis) y [velocidad de SpeechSynthesisUtterance](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesisUtterance/rate). Los [eventos de palabras](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesisUtterance/boundary_event) varían por navegador y no ofrecen datos suficientes para una boca sincronizada con precisión; el indicador se limita al estado de reproducción.
+
+La voz usa la síntesis Web Speech del dispositivo, con preferencia de voz inglesa estadounidense y respaldo de otra voz inglesa. Para reducir dos ambigüedades de lectura, la entrada Winds reproduce **The winds** (los vientos), y Discard reproduce **Discard a tile** (descarta una ficha). Son frases inglesas naturales, con su significado explicado en pantalla; no son transcripciones fonéticas inventadas. El artículo de la primera indica el sustantivo de vocal corta, y el complemento de la segunda indica el verbo, cuyo acento recae en la segunda sílaba. Este contexto ayuda al sintetizador, pero la realización audible sigue dependiendo de la voz instalada.
+
+Las pistas para los labios y la lengua son ayudas textuales de práctica. No hay detección de fonemas, video de pronunciación ni sincronización labial. La usuaria puede repetir para sí misma; la web no pide micrófono ni graba o califica su voz. Las frases de cortesía, como I'm ready y Wait, please, ayudan a conversar y no constituyen reglas adicionales ni alteran una ventana de reclamo.
+
 ## Decisiones de contenido
 
 Las combinaciones incluidas son composiciones originales para aprender. No se presentan como líneas oficiales de 2026 ni como una tarjeta alternativa para competir. Las reglas de juego y la lista anual de combinaciones son capas distintas.
@@ -54,6 +69,6 @@ También se omiten puntuación monetaria, penalizaciones, declaraciones de mano 
 5. Aprender tomar, decidir y descartar; después reclamar, exponer y recuperar un comodín.
 6. Elegir un objetivo, conservar lo útil y comprobar la mano antes de anunciar victoria.
 7. Jugar una mesa acompañada en español; añadir una línea personal cuando esté lista.
-8. Relacionar términos conocidos con Dots, Bams, Craks, Single, Pair, Pung, Kong, Quint, Joker y Charleston; practicar después la mesa en inglés.
+8. Escuchar y reconocer los nombres ingleses mediante dibujos y significados españoles, repetirlos voluntariamente, comprender las frases de las compañeras y practicar después la mesa en inglés.
 
 Los tiempos breves, la ausencia de reloj, las pistas opcionales y el tono de los textos son decisiones de diseño de esta experiencia. No son reglas del Mahjong.

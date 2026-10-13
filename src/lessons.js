@@ -590,6 +590,7 @@ export const LESSONS = [
     steps: [
       {
         title: "Tres nombres para tres familias",
+        audioIds: ["dots", "bams", "craks"],
         text: "Círculos se dice Dots; bambúes, Bams; caracteres, Craks. Ya conoces sus dibujos. Ahora solo estamos poniendo una etiqueta nueva a algo familiar.",
         tiles: ["c2", "b2", "k2", "c7"],
         task: {
@@ -603,6 +604,7 @@ export const LESSONS = [
       },
       {
         title: "Una suelta y una pareja",
+        audioIds: ["single", "pair"],
         text: "Single significa ficha suelta. Pair significa pareja: dos iguales. La regla del comodín sigue igual: no puede sustituir ninguna de estas fichas.",
         tiles: ["we", "c6", "c6", "b9"],
         task: {
@@ -616,6 +618,7 @@ export const LESSONS = [
       },
       {
         title: "Los grupos que ya conoces",
+        audioIds: ["pung", "kong", "quint"],
         text: "Pung es un trío: tres iguales. Kong es un cuarteto: cuatro iguales. Quint es un grupo de cinco iguales. Los comodines pueden formar parte de estos grupos.",
         tiles: ["b5", "b5", "b5", "b5"],
         task: {
@@ -634,6 +637,7 @@ export const LESSONS = [
       },
       {
         title: "Las fichas especiales",
+        audioIds: ["flowers", "winds", "dragons", "joker", "soap"],
         text: "Flowers son flores; Winds, vientos; Dragons, dragones; Joker, comodín. En la mesa en inglés verás W para oeste y G para el dragón verde. Sus reglas siguen iguales.",
         tip: "White dragon es el dragón blanco: también se suele llamar Soap. East es este; South es sur; West es oeste; North es norte.",
         tiles: ["f", "wn", "dw", "j"],
@@ -648,6 +652,7 @@ export const LESSONS = [
       },
       {
         title: "Las palabras de una partida",
+        audioIds: ["draw", "discard", "call", "mahjong", "your-turn"],
         text: "Draw es tomar una ficha; Discard es descartar; Call es pedir un descarte. Para anunciar una mano completa dices Mahjong. Ya puedes probar la mesa en inglés.",
         tip: "Exposed es expuesto y Concealed es oculto: las letras X y C de la tarjeta.",
         tiles: ["c8", "b6", "k1"],

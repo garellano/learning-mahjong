@@ -2,6 +2,10 @@ import { LESSONS } from "./lessons.js";
 import { tileHTML as renderTile, tileLabel } from "./tiles.js";
 import { captureTiles, animateTiles, cancelTileMotion } from "./motion.js";
 import { createTurnPlayer } from "./turn-player.js";
+import { VOCAB, LISTENING_LESSONS } from "./english.js";
+import { createSpeechPlayer } from "./speech.js";
+import { createSoundPlayer, resolveSoundPreference } from "./sounds.js";
+import { renderEnglishHome, renderListeningLesson } from "./listening-ui.js";
 import {
   TRAINING_PATTERNS,
   createWall,
@@ -39,12 +43,15 @@ function readSaved() {
 const saved = readSaved();
 const profile = {
   name: "Gaby",
-  sound: false,
   completed: [],
   steps: {},
   attempts: {},
   personalPatterns: [],
+  listeningSteps: {},
+  listeningCompleted: [],
+  audioHeard: [],
   ...saved.profile,
+  sound: resolveSoundPreference(saved.profile),
 };
 let game = saved.game || null;
 let lang = saved.lang || "es";
@@ -58,8 +65,13 @@ let editorOpen = false;
 let draft = [];
 let editorKind = "c1";
 let toastTimer;
-let audioContext;
 let priorFocus;
+let listeningChoice = null;
+let listeningFeedback = null;
+let listeningShowText = false;
+let vocabularyCategory = "tile";
+const listenedSteps = new Set();
+let speechState = { id: null, phase: "idle" };
 // Visual feedback belongs to this visit, never to the saved game or its rules.
 let tableChange = null;
 const icons = {
@@ -75,12 +87,169 @@ const icons = {
 };
 const en = () => lang === "en";
 const tr = (es, enText) => (en() ? enText : es);
+const effects = createSoundPlayer({
+  enabled: () => profile.sound,
+  ducked: () => speech.isSpeaking(),
+});
+const speech = createSpeechPlayer({
+  onState: updateSpeechUI,
+  onError: (error) => toast(error.message),
+});
+function currentListening() {
+  const lesson =
+    LISTENING_LESSONS.find((item) => item.id === route()[1]) ||
+    LISTENING_LESSONS[0];
+  const index = Math.min(
+    profile.listeningSteps[lesson.id] || 0,
+    lesson.steps.length,
+  );
+  return {
+    lesson,
+    index,
+    step: lesson.steps[index],
+    key: lesson.id + "/" + index,
+  };
+}
+function updateSpeechUI(state = speechState) {
+  speechState = state;
+  const busy = state.phase === "loading" || state.phase === "speaking";
+  document.querySelectorAll("[data-voice-id]").forEach((card) => {
+    const active = busy && card.dataset.voiceId === state.id;
+    card.classList.toggle("is-speaking", active && state.phase === "speaking");
+    card.classList.toggle("is-loading", active && state.phase === "loading");
+  });
+  document.querySelectorAll("[data-speak]").forEach((button) => {
+    const active =
+      busy &&
+      button.dataset.speak === state.id &&
+      (button.dataset.slow === "true") === !!state.slow;
+    button.setAttribute("aria-pressed", String(active));
+    button.classList.toggle("is-playing", active);
+  });
+  document.querySelectorAll("[data-voice-status]").forEach((label) => {
+    const active = label.dataset.voiceStatus === state.id;
+    const statusText =
+      active && state.phase === "loading"
+        ? "Preparando la voz…"
+        : active && state.phase === "speaking"
+          ? state.slow
+            ? "Escuchando más despacio…"
+            : "Escuchando en inglés…"
+          : active && state.phase === "error"
+            ? "Puedes volver a intentarlo o mostrar la palabra."
+            : "Puedes escuchar otra vez y repetir en voz alta.";
+    if (label.textContent !== statusText) label.textContent = statusText;
+  });
+  document.querySelectorAll('[data-action="voice-stop"]').forEach((button) => {
+    button.disabled = !busy;
+  });
+  if (
+    state.phase === "speaking" &&
+    state.id &&
+    !profile.audioHeard.includes(state.id)
+  ) {
+    profile.audioHeard.push(state.id);
+    save();
+  }
+  if (state.phase === "speaking" && route()[0] === "escuchar") {
+    const current = currentListening();
+    if (current.step?.audioId === state.id) listenedSteps.add(current.key);
+  }
+  if (route()[0] === "escuchar") {
+    const heard = listenedSteps.has(currentListening().key);
+    const check = $('[data-action="listening-check"]');
+    if (check)
+      check.disabled =
+        !listeningChoice ||
+        !(
+          heard ||
+          listeningShowText ||
+          listeningFeedback ||
+          !speech.supported ||
+          state.phase === "error"
+        );
+    if (heard && !listeningFeedback) {
+      const note = $(".listening-answer-note");
+      if (note)
+        note.textContent =
+          "Elige una opción. Puedes escuchar otra vez antes de decidir.";
+    }
+  }
+  const heardCount = $(".listening-heard");
+  if (heardCount)
+    heardCount.textContent = `${VOCAB.filter((word) => profile.audioHeard.includes(word.id)).length} de ${VOCAB.length} sonidos explorados`;
+  turnPlayer.sync();
+}
+function speakVocabulary(id, slow = false) {
+  effects.stop();
+  if (id === "table-instruction")
+    return speech.speak({ id, text: gameMessage(), slow });
+  const word = VOCAB.find((item) => item.id === id);
+  if (word) speech.speak({ id, text: word.speech || word.en, slow });
+}
+function checkListening() {
+  const { step, key } = currentListening();
+  if (!step || !listeningChoice)
+    return toast("Elige el dibujo o significado que escuchaste.");
+  if (
+    speech.supported &&
+    !listenedSteps.has(key) &&
+    !listeningShowText &&
+    speechState.phase !== "error"
+  )
+    return toast(
+      "Primero toca Escuchar. También puedes mostrar la palabra como ayuda.",
+    );
+  if (!speech.supported || speechState.phase === "error")
+    listeningShowText = true;
+  speech.stop();
+  listeningFeedback = { ok: listeningChoice === step.answerId };
+  tone(listeningFeedback.ok);
+  render();
+}
+function moveListening(action) {
+  const { lesson, index } = currentListening();
+  if (action === "listening-next" && !listeningFeedback?.ok) return;
+  speech.stop();
+  const next =
+    action === "listening-repeat"
+      ? 0
+      : Math.max(
+          0,
+          Math.min(
+            lesson.steps.length,
+            index + (action === "listening-back" ? -1 : 1),
+          ),
+        );
+  profile.listeningSteps[lesson.id] = next;
+  if (
+    next === lesson.steps.length &&
+    !profile.listeningCompleted.includes(lesson.id)
+  )
+    profile.listeningCompleted.push(lesson.id);
+  save();
+  resetInteraction();
+  render();
+  $("#main")?.focus();
+  window.scrollTo(0, 0);
+}
+function lessonAudio(ids = []) {
+  return `<aside class="lesson-audio-strip"><h3>Escúchalo y prueba decirlo.</h3><p>Oye cada palabra a tu ritmo. Puedes repetirla en voz alta.</p>${ids
+    .map((id) => {
+      const word = VOCAB.find((item) => item.id === id);
+      return `<div class="voice-card" data-voice-id="${esc(id)}"><strong lang="en">${esc(word.en)}</strong><div class="voice-buttons"><button type="button" class="btn secondary" data-speak="${esc(id)}" ${speech.supported ? "" : "disabled"}>Escuchar</button><button type="button" class="text-button" data-speak="${esc(id)}" data-slow="true" ${speech.supported ? "" : "disabled"}>Más despacio</button></div></div>`;
+    })
+    .join(
+      "",
+    )}<a class="text-button" href="#repaso">Practicar con el oído y los dibujos →</a></aside>`;
+}
 const turnPlayer = createTurnPlayer({
   delay: 850,
   shouldRun: () =>
     route()[0] === "mesa" &&
     game?.phase === "bots" &&
     !botPaused &&
+    !speech.isSpeaking() &&
     !document.hidden &&
     !$("#modal"),
   step: playBotStep,
@@ -144,6 +313,9 @@ function botEventMessage(event, locale = lang) {
 function playBotStep() {
   const before = gameSnapshot();
   advanceBotStep(game);
+  if (["draw", "discard", "claim", "win"].includes(game.botEvent?.type)) {
+    tone(game.botEvent.type === "claim" ? "success" : game.botEvent.type);
+  }
   save();
   render(trackGameChange("bot-step", before));
   announceChange();
@@ -321,31 +493,10 @@ function save() {
     toast("Tu navegador no pudo guardar el progreso. Puedes seguir jugando.");
   }
 }
-function tone(ok = true) {
-  if (!profile.sound) return;
-  try {
-    audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-    audioContext.resume();
-    const o = audioContext.createOscillator(),
-      g = audioContext.createGain();
-    o.connect(g);
-    g.connect(audioContext.destination);
-    o.type = "sine";
-    o.frequency.setValueAtTime(ok ? 660 : 330, audioContext.currentTime);
-    o.frequency.exponentialRampToValueAtTime(
-      ok ? 880 : 280,
-      audioContext.currentTime + 0.13,
-    );
-    g.gain.setValueAtTime(0.035, audioContext.currentTime);
-    g.gain.exponentialRampToValueAtTime(
-      0.0001,
-      audioContext.currentTime + 0.24,
-    );
-    o.start();
-    o.stop(audioContext.currentTime + 0.25);
-  } catch {
-    /* Sonido opcional. */
-  }
+function tone(value = true) {
+  return effects.play(
+    typeof value === "string" ? value : value ? "success" : "retry",
+  );
 }
 function toast(message) {
   clearTimeout(toastTimer);
@@ -358,6 +509,7 @@ function route() {
 }
 function go(hash) {
   if (location.hash === "#" + hash) {
+    speech.stop();
     resetInteraction();
     render();
     window.scrollTo(0, 0);
@@ -367,9 +519,14 @@ function resetInteraction() {
   selected.clear();
   chosen = null;
   feedback = null;
+  listeningChoice = null;
+  listeningFeedback = null;
+  listeningShowText = false;
 }
 function navLink(id, label, symbol) {
-  return `<a href="#${id}" class="${route()[0] === id ? "active" : ""}" ${route()[0] === id ? 'aria-current="page"' : ""}><span class="nav-icon" aria-hidden="true">${symbol}</span>${label}</a>`;
+  const active =
+    route()[0] === id || (id === "repaso" && route()[0] === "escuchar");
+  return `<a href="#${id}" class="${active ? "active" : ""}" ${active ? 'aria-current="page"' : ""}><span class="nav-icon" aria-hidden="true">${symbol}</span>${label}</a>`;
 }
 function frame(body) {
   return `<header class="app-header"><a class="brand" href="#inicio" aria-label="Mahjong, a tu ritmo. Inicio"><img src="./assets/icon.svg" alt=""><span>mahjong<small>a tu ritmo</small></span></a><nav class="nav" aria-label="Navegación principal">${navLink("inicio", "Mi camino", "⌂")}${navLink("mesa", "La mesa", "▦")}${navLink("tarjeta", "Mi tarjeta", "▤")}${navLink("repaso", "El inglés", "Aa")}</nav><div class="header-actions"><button class="icon-button" data-action="sound" aria-label="${profile.sound ? "Desactivar" : "Activar"} sonidos" aria-pressed="${profile.sound}" title="Sonido ${profile.sound ? "activado" : "desactivado"}">${icons.sound}${profile.sound ? "" : '<span class="hide">apagado</span>'}</button><button class="icon-button" data-action="settings" aria-label="Mis preferencias">${icons.settings}</button></div></header><main id="main" class="shell" tabindex="-1">${body}</main><footer class="app-footer"><span>Hecho para aprender, disfrutar y volver a intentar.<br>Tu progreso se guarda en este navegador. Sin cuentas ni anuncios.</span><span>Mahjong Americano · <a href="https://www.nationalmahjonggleague.org/" target="_blank" rel="noopener">National Mah Jongg League ↗</a><br>Ejercicios propios · Sin afiliación con NMJL</span></footer>`;
@@ -391,11 +548,11 @@ function lessonPage(id) {
   if (stepIndex === lesson.steps.length) return lessonComplete(lesson, index);
   const step = lesson.steps[stepIndex],
     task = step.task;
-  return `<a class="back-link" href="#inicio">${icons.back} Mi camino</a><div class="page-title"><div><span class="eyebrow" style="margin:0">FASE ${String(index + 1).padStart(2, "0")}</span><h1>${esc(lesson.title)}</h1></div></div><div class="lesson-layout"><section class="lesson-panel"><div class="lesson-progress"><span>Reto ${stepIndex + 1} de ${lesson.steps.length}</span><div class="progress-track"><span style="width:${((stepIndex + 1) / lesson.steps.length) * 100}%"></span></div><span>Sin prisa</span></div><div class="lesson-content"><h2>${esc(step.title)}</h2><p>${esc(step.text)}</p><div class="exercise"><p class="exercise-prompt">${esc(task.prompt)}</p>${step.tiles?.length ? `<div class="tile-row" data-motion-zone="lesson">${step.tiles.map((k, i) => `<span data-exercise-tile="${i}">${tileHTML(k, { id: String(i), motionId: `lesson-${lesson.id}-${stepIndex}-${i}`, selected: selected.has(String(i)), disabled: task.type !== "select" })}</span>`).join("")}</div>` : ""}${task.type === "choice" ? `<div class="choices">${task.options.map((o) => `<button class="choice ${chosen === o.id ? "selected" : ""}" data-choice="${esc(o.id)}" aria-pressed="${chosen === o.id}">${esc(o.label)}</button>`).join("")}</div>` : ""}</div>${feedback ? `<div class="feedback ${feedback.ok ? "" : "retry"}" role="status"><strong>${feedback.ok ? "¡Reto conseguido!" : "Probemos otra vez."}</strong>${esc(feedback.ok ? task.success : task.explanation)}${!feedback.ok && (profile.attempts[lesson.id + "-" + stepIndex] || 0) >= 2 ? '<p style="margin:10px 0 0">Puedes mirar la pista y tocar las fichas con calma. El progreso se construye practicando.</p>' : ""}</div>` : ""}</div><div class="lesson-actions"><button class="text-button" data-action="lesson-back" ${stepIndex === 0 ? "disabled" : ""}>← Anterior</button>${feedback?.ok ? '<button class="btn" data-action="lesson-next">Siguiente reto ' + icons.arrow + "</button>" : '<button class="btn" data-action="lesson-check">Comprobar mi respuesta</button>'}</div></section><aside><div class="coach"><div class="coach-icon">${icons.spark}</div><h3>Una pista a tu lado</h3><p>${esc(step.tip || "Mira el dibujo y el número. Compara una ficha a la vez; no hace falta memorizar todo hoy.")}</p><p class="tiny">No hay vidas que perder. Cada intento te ayuda a reconocer algo nuevo.</p></div><nav class="lesson-map" aria-label="Fases">${LESSONS.map((l, i) => `<a href="#leccion/${l.id}" class="${lesson.id === l.id ? "active" : ""}"><span class="step-dot">${profile.completed.includes(l.id) ? "✓" : i + 1}</span>${esc(l.title)}</a>`).join("")}</nav></aside></div>`;
+  return `<a class="back-link" href="#inicio">${icons.back} Mi camino</a><div class="page-title"><div><span class="eyebrow" style="margin:0">FASE ${String(index + 1).padStart(2, "0")}</span><h1>${esc(lesson.title)}</h1></div></div><div class="lesson-layout"><section class="lesson-panel"><div class="lesson-progress"><span>Reto ${stepIndex + 1} de ${lesson.steps.length}</span><div class="progress-track"><span style="width:${((stepIndex + 1) / lesson.steps.length) * 100}%"></span></div><span>Sin prisa</span></div><div class="lesson-content"><h2>${esc(step.title)}</h2><p>${esc(step.text)}</p>${step.audioIds ? lessonAudio(step.audioIds) : ""}<div class="exercise"><p class="exercise-prompt">${esc(task.prompt)}</p>${step.tiles?.length ? `<div class="tile-row" data-motion-zone="lesson">${step.tiles.map((k, i) => `<span data-exercise-tile="${i}">${tileHTML(k, { id: String(i), motionId: `lesson-${lesson.id}-${stepIndex}-${i}`, lang: lesson.id === "ingles" ? "en" : "es", selected: selected.has(String(i)), disabled: task.type !== "select" })}</span>`).join("")}</div>` : ""}${task.type === "choice" ? `<div class="choices">${task.options.map((o) => `<button class="choice ${chosen === o.id ? "selected" : ""}" data-choice="${esc(o.id)}" aria-pressed="${chosen === o.id}">${esc(o.label)}</button>`).join("")}</div>` : ""}</div>${feedback ? `<div class="feedback ${feedback.ok ? "" : "retry"}" role="status"><strong>${feedback.ok ? "¡Reto conseguido!" : "Probemos otra vez."}</strong>${esc(feedback.ok ? task.success : task.explanation)}${!feedback.ok && (profile.attempts[lesson.id + "-" + stepIndex] || 0) >= 2 ? '<p style="margin:10px 0 0">Puedes mirar la pista y tocar las fichas con calma. El progreso se construye practicando.</p>' : ""}</div>` : ""}</div><div class="lesson-actions"><button class="text-button" data-action="lesson-back" ${stepIndex === 0 ? "disabled" : ""}>← Anterior</button>${feedback?.ok ? '<button class="btn" data-action="lesson-next">Siguiente reto ' + icons.arrow + "</button>" : '<button class="btn" data-action="lesson-check">Comprobar mi respuesta</button>'}</div></section><aside><div class="coach"><div class="coach-icon">${icons.spark}</div><h3>Una pista a tu lado</h3><p>${esc(step.tip || "Mira el dibujo y el número. Compara una ficha a la vez; no hace falta memorizar todo hoy.")}</p><p class="tiny">No hay vidas que perder. Cada intento te ayuda a reconocer algo nuevo.</p></div><nav class="lesson-map" aria-label="Fases">${LESSONS.map((l, i) => `<a href="#leccion/${l.id}" class="${lesson.id === l.id ? "active" : ""}"><span class="step-dot">${profile.completed.includes(l.id) ? "✓" : i + 1}</span>${esc(l.title)}</a>`).join("")}</nav></aside></div>`;
 }
 function lessonComplete(lesson, index) {
   const next = LESSONS[index + 1];
-  return `<a class="back-link" href="#inicio">${icons.back} Mi camino</a><div class="lesson-panel complete-banner"><div class="medal" aria-hidden="true">✧</div><span class="eyebrow">UN PASO MÁS, A TU MANERA</span><h2>Una nueva habilidad, ${esc(profile.name)}.</h2><p>Completaste «${esc(lesson.title)}».<br>¿Te apetece repetir, probarlo en la mesa o subir el reto?</p><div class="button-row"><button class="btn secondary" data-action="lesson-repeat">Otra práctica</button><a class="btn" href="#${next ? "leccion/" + next.id : "mesa/en"}">${next ? "Subir el reto" : "Jugar en inglés"} ${icons.arrow}</a><a class="text-button" href="#mesa">Probarlo en la mesa</a></div></div>`;
+  return `<a class="back-link" href="#inicio">${icons.back} Mi camino</a><div class="lesson-panel complete-banner"><div class="medal" aria-hidden="true">✧</div><span class="eyebrow">UN PASO MÁS, A TU MANERA</span><h2>Una nueva habilidad, ${esc(profile.name)}.</h2><p>Completaste «${esc(lesson.title)}».<br>¿Te apetece repetir, probarlo en la mesa o subir el reto?</p><div class="button-row"><button class="btn secondary" data-action="lesson-repeat">Otra práctica</button><a class="btn" href="#${next ? "leccion/" + next.id : "repaso"}">${next ? "Subir el reto" : "Entrenar el oído"} ${icons.arrow}</a><a class="text-button" href="#mesa">Probarlo en la mesa</a></div></div>`;
 }
 function currentLesson() {
   const lesson = LESSONS.find((l) => l.id === route()[1]) || LESSONS[0];
@@ -582,7 +739,7 @@ function gamePage() {
     .map((t) => gameTile(t, { selected: selected.has(t.id), lang }))
     .join(
       "",
-    )}</div><div class="rack-actions">${game.phase === "charleston" ? `<button class="btn" data-action="pass" ${selected.size !== 3 ? "disabled" : ""}>${tr("Pasar 3", "Pass 3")} ${["→", "↑", "←"][game.passIndex]}</button>` : ""}${game.phase === "draw" ? `<button class="btn" data-action="draw">${tr("Tomar una ficha", "Pick a tile")} ${icons.arrow}</button>` : ""}${game.phase === "discard" ? `<button class="btn" data-action="discard" ${selected.size !== 1 ? "disabled" : ""}>${tr("Descartar", "Discard")} ${selectedTile ? esc(tileLabel(selectedTile.kind, lang)) : tr("una ficha", "one tile")}</button><button class="btn secondary" data-action="win">Mahjong!</button>` : ""}${game.phase === "finished" ? `<button class="btn" data-action="game-menu">${tr("Volver a practicar", "Practice again")}</button>` : ""}<button class="btn subtle" data-action="sort">${tr("Ordenar fichas", "Sort tiles")}</button><button class="btn subtle" data-action="advice" ${game.phase === "bots" ? "disabled" : ""}>${tr("Dame una pista", "Give me a hint")}</button></div>${showHint ? `<p class="inline-hint" role="status">${esc(shortHint())}</p>` : ""}</div><p class="table-help">${tr("Mesa de aprendizaje: practicamos el primer intercambio de tres pases. La segunda ronda, el pase a ciegas, el intercambio de cortesía y la puntuación quedan fuera de esta simulación. El orden de las compañeras es derecha → enfrente → izquierda.", "Learning table: we practice the first three Charleston passes. The second Charleston, blind passes, courtesy pass and scoring are outside this simulation. Opponents are shown right → across → left.")}</p>${game.phase === "finished" ? finishedHand() : ""}</section><aside class="game-coach"><div class="target-card"><span class="eyebrow" style="margin-bottom:10px">${tr("TU COMBINACIÓN OBJETIVO", "YOUR TARGET HAND")}</span><label class="field" style="margin-bottom:0"><span class="hide">${tr("Elegir combinación", "Choose a target")}</span><select id="target-select" ${game.phase === "bots" ? "disabled" : ""}>${rank.map((r) => `<option value="${esc(r.pattern.id)}" ${r.pattern.id === pattern.id ? "selected" : ""} ${!r.compatible ? "disabled" : ""}>${esc(patternName(r.pattern))} · ${r.matched}/14</option>`).join("")}</select></label><p style="margin-top:10px">${pattern.source === "personal" ? tr("Añadida por ti · comprueba tu tarjeta 2026.", "Added by you · check your 2026 card.") : tr("Ejercicio didáctico propio · no es una línea oficial 2026.", "Original training hand · not an official 2026 line.")} ${pattern.concealed ? tr("Mano oculta.", "Concealed hand.") : ""}</p>${miniatureGroups(pattern, analysis)}<p class="small muted">${tr("Las fichas claras aún te faltan.", "Faded tiles are still missing.")}</p><div class="match-summary"><strong>${analysis.matched} ${tr("de 14 encajan", "of 14 match")}</strong></div><div class="progress-track"><span style="width:${(analysis.matched / 14) * 100}%"></span></div>${analysis.missing.length ? `<p class="missing-label">${tr("TE FALTAN PARA ESTE OBJETIVO", "STILL NEEDED FOR THIS TARGET")}</p><div class="tile-row" style="justify-content:flex-start;gap:7px">${analysis.missing.map((k) => tileHTML(k, { small: true, disabled: true, lang })).join("")}</div>` : `<p class="small">${tr("¡Todas encajan! Declara Mahjong en tu turno.", "All tiles match! Call Mahjong on your turn.")}</p>`}${unavailable ? `<div class="feedback retry">${esc(unavailable)}</div>` : ""}</div><div class="hint-card"><h3>${icons.spark} ${tr("Tu guía de mesa", "Your table guide")}</h3><p>${showHint ? esc(game.phase === "charleston" ? tr("Conserva las fichas que encajan y pasa tres de las que menos ayudan. Nunca pases comodines. Ya marqué una propuesta; puedes cambiarla.", "Keep tiles that match your target. Pass three less useful tiles, never Jokers. I selected a suggestion; you can change it.") : game.phase === "draw" ? tr("Tienes 13 fichas en total. Primero toma una de la pared; después elegimos cuál descartar.", "You have 13 tiles total. Pick from the wall first, then choose a discard.") : game.phase === "claim" ? tr("Solo reclama si completas un grupo permitido o toda tu mano. Un grupo mostrado ya no puede cambiar.", "Only call to complete a permitted group or your whole hand. An exposed group stays fixed.") : analysis.complete ? tr("Tu mano está completa: declara Mahjong para terminar. No necesitas descartar.", "Your hand is complete: call Mahjong to finish. You do not need to discard.") : hint.tile ? tr(`Para este objetivo, ${tileLabel(hint.tile.kind)} es una candidata a descartar. Te marqué esa candidata; puedes elegir otra y comparar otros objetivos.`, `${tileLabel(hint.tile.kind, "en")} is a discard candidate for this target. I selected that candidate. You can choose another and compare targets too.`) : tr("Tu mano encaja: comprueba el objetivo y declara Mahjong.", "Your hand matches: check the target and call Mahjong.")) : esc(tr("Cuando quieras, pide una pista. Te ayudaré a ver qué conservar y qué falta, usando solo tu mano y las fichas visibles.", "Ask for a hint whenever you like. We use your hand and visible tiles, never your opponents’ hidden tiles."))}</p><button class="text-button hint-toggle" data-action="advice" ${game.phase === "bots" ? "disabled" : ""}>${tr("Muéstrame una sugerencia", "Show me a suggestion")} →</button></div><div class="target-card"><h3>${tr("El pequeño reto de este turno", "This turn’s small challenge")}</h3><p>${esc(gameMessage())}</p><button class="text-button" data-action="language">${en() ? "Volver al español" : "Probar la mesa en inglés"} →</button></div></aside></div>`;
+    )}</div><div class="rack-actions">${game.phase === "charleston" ? `<button class="btn" data-action="pass" ${selected.size !== 3 ? "disabled" : ""}>${tr("Pasar 3", "Pass 3")} ${["→", "↑", "←"][game.passIndex]}</button>` : ""}${game.phase === "draw" ? `<button class="btn" data-action="draw">${tr("Tomar una ficha", "Pick a tile")} ${icons.arrow}</button>` : ""}${game.phase === "discard" ? `<button class="btn" data-action="discard" ${selected.size !== 1 ? "disabled" : ""}>${tr("Descartar", "Discard")} ${selectedTile ? esc(tileLabel(selectedTile.kind, lang)) : tr("una ficha", "one tile")}</button><button class="btn secondary" data-action="win">Mahjong!</button>` : ""}${game.phase === "finished" ? `<button class="btn" data-action="game-menu">${tr("Volver a practicar", "Practice again")}</button>` : ""}<button class="btn subtle" data-action="sort">${tr("Ordenar fichas", "Sort tiles")}</button><button class="btn subtle" data-action="advice" ${game.phase === "bots" ? "disabled" : ""}>${tr("Dame una pista", "Give me a hint")}</button></div>${showHint ? `<p class="inline-hint" role="status">${esc(shortHint())}</p>` : ""}</div><p class="table-help">${tr("Mesa de aprendizaje: practicamos el primer intercambio de tres pases. La segunda ronda, el pase a ciegas, el intercambio de cortesía y la puntuación quedan fuera de esta simulación. El orden de las compañeras es derecha → enfrente → izquierda.", "Learning table: we practice the first three Charleston passes. The second Charleston, blind passes, courtesy pass and scoring are outside this simulation. Opponents are shown right → across → left.")}</p>${game.phase === "finished" ? finishedHand() : ""}</section><aside class="game-coach"><div class="target-card"><span class="eyebrow" style="margin-bottom:10px">${tr("TU COMBINACIÓN OBJETIVO", "YOUR TARGET HAND")}</span><label class="field" style="margin-bottom:0"><span class="hide">${tr("Elegir combinación", "Choose a target")}</span><select id="target-select" ${game.phase === "bots" ? "disabled" : ""}>${rank.map((r) => `<option value="${esc(r.pattern.id)}" ${r.pattern.id === pattern.id ? "selected" : ""} ${!r.compatible ? "disabled" : ""}>${esc(patternName(r.pattern))} · ${r.matched}/14</option>`).join("")}</select></label><p style="margin-top:10px">${pattern.source === "personal" ? tr("Añadida por ti · comprueba tu tarjeta 2026.", "Added by you · check your 2026 card.") : tr("Ejercicio didáctico propio · no es una línea oficial 2026.", "Original training hand · not an official 2026 line.")} ${pattern.concealed ? tr("Mano oculta.", "Concealed hand.") : ""}</p>${miniatureGroups(pattern, analysis)}<p class="small muted">${tr("Las fichas claras aún te faltan.", "Faded tiles are still missing.")}</p><div class="match-summary"><strong>${analysis.matched} ${tr("de 14 encajan", "of 14 match")}</strong></div><div class="progress-track"><span style="width:${(analysis.matched / 14) * 100}%"></span></div>${analysis.missing.length ? `<p class="missing-label">${tr("TE FALTAN PARA ESTE OBJETIVO", "STILL NEEDED FOR THIS TARGET")}</p><div class="tile-row" style="justify-content:flex-start;gap:7px">${analysis.missing.map((k) => tileHTML(k, { small: true, disabled: true, lang })).join("")}</div>` : `<p class="small">${tr("¡Todas encajan! Declara Mahjong en tu turno.", "All tiles match! Call Mahjong on your turn.")}</p>`}${unavailable ? `<div class="feedback retry">${esc(unavailable)}</div>` : ""}</div><div class="hint-card"><h3>${icons.spark} ${tr("Tu guía de mesa", "Your table guide")}</h3><p>${showHint ? esc(game.phase === "charleston" ? tr("Conserva las fichas que encajan y pasa tres de las que menos ayudan. Nunca pases comodines. Ya marqué una propuesta; puedes cambiarla.", "Keep tiles that match your target. Pass three less useful tiles, never Jokers. I selected a suggestion; you can change it.") : game.phase === "draw" ? tr("Tienes 13 fichas en total. Primero toma una de la pared; después elegimos cuál descartar.", "You have 13 tiles total. Pick from the wall first, then choose a discard.") : game.phase === "claim" ? tr("Solo reclama si completas un grupo permitido o toda tu mano. Un grupo mostrado ya no puede cambiar.", "Only call to complete a permitted group or your whole hand. An exposed group stays fixed.") : analysis.complete ? tr("Tu mano está completa: declara Mahjong para terminar. No necesitas descartar.", "Your hand is complete: call Mahjong to finish. You do not need to discard.") : hint.tile ? tr(`Para este objetivo, ${tileLabel(hint.tile.kind)} es una candidata a descartar. Te marqué esa candidata; puedes elegir otra y comparar otros objetivos.`, `${tileLabel(hint.tile.kind, "en")} is a discard candidate for this target. I selected that candidate. You can choose another and compare targets too.`) : tr("Tu mano encaja: comprueba el objetivo y declara Mahjong.", "Your hand matches: check the target and call Mahjong.")) : esc(tr("Cuando quieras, pide una pista. Te ayudaré a ver qué conservar y qué falta, usando solo tu mano y las fichas visibles.", "Ask for a hint whenever you like. We use your hand and visible tiles, never your opponents’ hidden tiles."))}</p><button class="text-button hint-toggle" data-action="advice" ${game.phase === "bots" ? "disabled" : ""}>${tr("Muéstrame una sugerencia", "Show me a suggestion")} →</button></div><div class="target-card"><h3>${tr("El pequeño reto de este turno", "This turn’s small challenge")}</h3><p>${esc(gameMessage())}</p>${en() ? `<div class="voice-card table-voice" data-voice-id="table-instruction"><button class="text-button" data-speak="table-instruction" ${speech.supported ? "" : "disabled"}>Listen to this instruction</button></div>` : ""}<button class="text-button" data-action="language">${en() ? "Volver al español" : "Probar la mesa en inglés"} →</button></div></aside></div>`;
 }
 function finishedHand() {
   if (game.winner === null)
@@ -618,6 +775,7 @@ function startGame(mode = "guided", patternId) {
 function gameAction(action, arg) {
   try {
     if (game.phase === "bots") return;
+    speech.stop();
     const before = gameSnapshot();
     const details = { passIndex: game.passIndex, outgoingIds: [...selected] };
     if (action === "pass") passTiles(game, [...selected]);
@@ -630,7 +788,9 @@ function gameAction(action, arg) {
     selected.clear();
     showHint = false;
     save();
-    tone();
+    tone(
+      action === "claim" ? "success" : action === "skip-claim" ? "tap" : action,
+    );
     render(trackGameChange(action, before, details));
     announceChange();
   } catch (error) {
@@ -695,22 +855,12 @@ function patternCard(p, personal = false) {
 function editorHTML() {
   return `<form class="editor" id="pattern-form"><h3>Transcribe una línea de tu tarjeta</h3><p class="small muted">Construye una versión concreta: elige las familias y los números que indica tu tarjeta. Añade cada grupo por separado hasta llegar a 14 fichas. Los colores de la tarjeta indican relaciones entre familias; no obligan a elegir un color real.</p><label class="field">Nombre para reconocerla<input name="pattern-name" id="pattern-name" maxlength="70" placeholder="Por ejemplo: mi primera línea de pares" required></label><p class="small"><strong>1. Elige la ficha de un grupo</strong></p><div class="editor-grid">${allKinds.map((k) => tileHTML(k, { id: "edit-" + k, selected: editorKind === k })).join("")}</div><div class="inline-fields"><label class="field">2. ¿Cuántas iguales?<select name="group-count" id="group-count">${[1, 2, 3, 4, 5, 6].map((n) => `<option value="${n}">${n} ${n === 1 ? "ficha" : "iguales"}</option>`).join("")}</select></label><button class="btn secondary" type="button" data-action="add-group" style="margin-bottom:18px">Añadir grupo de ${esc(tileLabel(editorKind))}</button></div><div class="draft-groups">${draft.map((g, i) => `<div class="draft-group">${Array.from({ length: g.count }, () => tileHTML(g.kind, { small: true, disabled: true })).join("")}<button type="button" data-remove-group="${i}" aria-label="Quitar grupo ${i + 1}">×</button></div>`).join("") || '<span class="small muted">Los grupos aparecerán aquí.</span>'}</div><p class="small"><strong>${draft.reduce((n, g) => n + g.count, 0)} de 14 fichas</strong> · Las parejas y fichas sueltas necesitan fichas reales. Solo los grupos de tres o más iguales admiten comodines.</p><label class="toggle-label"><input type="checkbox" name="concealed" id="concealed">La línea está marcada como oculta en mi tarjeta</label><p class="small muted">Guardamos exactamente lo que añadas. La web no certifica que coincida con una línea oficial: revisa también sus notas y restricciones. Si una línea muestra números distintos, añádelos como fichas sueltas.</p><button class="btn" type="submit" ${draft.reduce((n, g) => n + g.count, 0) !== 14 ? "disabled" : ""}>Guardar en mi dispositivo</button></form>`;
 }
-const glossary = [
-  ["c3", "Círculos", "Dots"],
-  ["b3", "Bambúes", "Bams"],
-  ["k3", "Caracteres", "Craks"],
-  ["f", "Flores", "Flowers"],
-  ["j", "Comodín", "Joker"],
-  ["dw", "Dragón blanco", "Soap"],
-  ["c1", "Ficha suelta", "Single"],
-  ["c2", "Pareja", "Pair"],
-  ["c3", "Grupo de tres", "Pung"],
-  ["c4", "Grupo de cuatro", "Kong"],
-  ["c5", "Grupo de cinco", "Quint"],
-  ["we", "Viento este", "East"],
-];
 function reviewPage() {
-  return `<div class="page-title"><div><span class="eyebrow">PRIMERO LO ENTIENDES. DESPUÉS LE PONES NOMBRE.</span><h1>Ahora, el inglés te suena.</h1><p>Las fichas son las mismas. Solo cambia cómo las escuchas en una mesa.</p></div></div><div class="notice"><h3>Ya conoces la idea. Une las palabras.</h3><p>Una pareja sigue siendo dos fichas iguales, aunque alguien diga «Pair». Consulta este repaso cuando lo necesites.</p><div class="button-row"><a class="btn" href="#leccion/${LESSONS.at(-1).id}">Probar el reto de vocabulario ${icons.arrow}</a><button class="btn secondary" data-action="english-game">Practicar la mesa en inglés →</button></div></div><div class="glossary">${glossary.map(([k, esName, enName]) => `<div class="glossary-item">${tileHTML(k, { small: true, disabled: true })}<div><strong>${esc(esName)}</strong><span>${esc(enName)}</span></div></div>`).join("")}</div><div class="coach"><h3>Frases que vas a reconocer</h3><p><strong>Pick a tile</strong> → Toma una ficha.<br><strong>Discard</strong> → Descarta una ficha.<br><strong>Call</strong> → Reclama el descarte.<br><strong>Exposed hand</strong> → Mano que permite mostrar grupos.<br><strong>Concealed hand</strong> → Mano oculta.<br><strong>Charleston</strong> → Intercambio inicial.<br><strong>Mahjong!</strong> → ¡Completé mi combinación!</p></div>`;
+  return renderEnglishHome({
+    profile,
+    speechSupported: speech.supported,
+    category: vocabularyCategory,
+  });
 }
 function render(motion = null) {
   const motionRoot = $("#app");
@@ -728,8 +878,23 @@ function render(motion = null) {
           ? cardPage()
           : page === "repaso"
             ? reviewPage()
-            : home();
+            : page === "escuchar"
+              ? (() => {
+                  const { lesson, index, key } = currentListening();
+                  return renderListeningLesson({
+                    lesson,
+                    stepIndex: index,
+                    selectedId: listeningChoice,
+                    feedback: listeningFeedback,
+                    showText: listeningShowText,
+                    speechSupported: speech.supported,
+                    hasListened: listenedSteps.has(key),
+                    profile,
+                  });
+                })()
+              : home();
   $("#app").innerHTML = frame(body);
+  updateSpeechUI(speechState);
   if (motion) animateTiles(before, { root: motionRoot, ...motion });
   document.documentElement.lang = en() && page === "mesa" ? "en" : "es";
   document.title =
@@ -739,10 +904,14 @@ function render(motion = null) {
         ? "Tu mesa de práctica"
         : page === "tarjeta"
           ? "Mi tarjeta"
-          : "Mahjong") + " · A tu ritmo";
+          : page === "escuchar" || page === "repaso"
+            ? "Escucha y reconoce"
+            : "Mahjong") + " · A tu ritmo";
   turnPlayer.sync();
 }
 function openDialog(html) {
+  speech.stop();
+  effects.stop();
   closeDialog();
   priorFocus = document.activeElement;
   const container = document.createElement("div");
@@ -763,7 +932,7 @@ function closeDialog() {
 }
 function settings() {
   openDialog(
-    `<h2 id="dialog-title">A tu manera.</h2><p>Pequeños detalles para sentirte a gusto.</p><form id="settings-form"><label class="field">¿Cómo quieres que te llamemos?<input name="name" value="${esc(profile.name)}" maxlength="30" required autocomplete="given-name"></label><label class="toggle-label"><input name="sound" type="checkbox" ${profile.sound ? "checked" : ""}>Sonidos suaves al responder y jugar</label><p>Tu progreso y tus líneas personales se guardan en este navegador. En otro dispositivo puedes empezar un camino independiente.</p><div class="button-row"><button class="btn" type="submit">Guardar</button><button class="btn secondary" type="button" data-action="close-dialog">Cerrar</button></div></form><div class="divider"></div><button class="text-button" data-action="reset-confirm">Reiniciar mi progreso</button>`,
+    `<h2 id="dialog-title">A tu manera.</h2><p>Pequeños detalles para sentirte a gusto.</p><form id="settings-form"><label class="field">¿Cómo quieres que te llamemos?<input name="name" value="${esc(profile.name)}" maxlength="30" required autocomplete="given-name"></label><label class="toggle-label"><input name="sound" type="checkbox" ${profile.sound ? "checked" : ""}>Efectos suaves de las fichas y los retos</label><p class="small muted">Las voces de inglés se escuchan con sus propios botones, aunque silencies los efectos.</p><p>Tu progreso y tus líneas personales se guardan en este navegador. En otro dispositivo puedes empezar un camino independiente.</p><div class="button-row"><button class="btn" type="submit">Guardar</button><button class="btn secondary" type="button" data-action="close-dialog">Cerrar</button></div></form><div class="divider"></div><button class="text-button" data-action="reset-confirm">Reiniciar mi progreso</button>`,
   );
 }
 function gameMenu() {
@@ -797,6 +966,7 @@ function chooseTile(button) {
     const i = button.closest("[data-exercise-tile]")?.dataset.exerciseTile;
     if (i === undefined) return;
     selected.has(i) ? selected.delete(i) : selected.add(i);
+    tone("tap");
     feedback = null;
     render({ action: "selection" });
     return;
@@ -818,6 +988,7 @@ function chooseTile(button) {
       if (selected.size < 3) selected.add(id);
     }
     updateHandSelection();
+    tone("tap");
     return;
   }
   if (page === "tarjeta" && button.closest(".editor-grid")) {
@@ -825,6 +996,7 @@ function chooseTile(button) {
       count = $("#group-count").value,
       concealed = $("#concealed").checked;
     editorKind = button.dataset.tile;
+    tone("tap");
     render();
     $("#pattern-name").value = name;
     $("#group-count").value = count;
@@ -835,6 +1007,7 @@ function chooseTile(button) {
     const index = button.closest("[data-quick]").dataset.quick;
     selected.has(index) ? selected.delete(index) : selected.add(index);
     if (selected.size > 2) selected = new Set([index]);
+    tone("tap");
     document.querySelectorAll("#quick-tiles .tile").forEach((b) => {
       const sel = selected.has(b.dataset.id);
       b.classList.toggle("selected", sel);
@@ -853,6 +1026,44 @@ function chooseTile(button) {
   }
 }
 document.addEventListener("click", (event) => {
+  const restart = event.target.closest("[data-restart-listening]");
+  if (restart) {
+    event.preventDefault();
+    const id = restart.dataset.restartListening;
+    if (!LISTENING_LESSONS.some((lesson) => lesson.id === id)) return;
+    profile.listeningSteps[id] = 0;
+    save();
+    go("escuchar/" + id);
+    return;
+  }
+  const voice = event.target.closest("[data-speak]");
+  if (voice && !voice.disabled) {
+    // Keep speak synchronous with this tap, as required by Safari on iOS.
+    speakVocabulary(voice.dataset.speak, voice.dataset.slow === "true");
+    return;
+  }
+  const audioChoice = event.target.closest("[data-listening-answer]");
+  if (audioChoice && !audioChoice.disabled) {
+    listeningChoice = audioChoice.dataset.listeningAnswer;
+    listeningFeedback = null;
+    tone("tap");
+    render();
+    $(`[data-listening-answer="${CSS.escape(listeningChoice)}"]`)?.focus({
+      preventScroll: true,
+    });
+    return;
+  }
+  const category = event.target.closest("[data-vocab-category]");
+  if (category) {
+    speech.stop();
+    vocabularyCategory = category.dataset.vocabCategory;
+    tone("tap");
+    render();
+    $(`[data-vocab-category="${vocabularyCategory}"]`)?.focus({
+      preventScroll: true,
+    });
+    return;
+  }
   const tile = event.target.closest("button.tile");
   if (tile && !tile.disabled) {
     chooseTile(tile);
@@ -862,6 +1073,7 @@ document.addEventListener("click", (event) => {
   if (choice) {
     chosen = choice.dataset.choice;
     feedback = null;
+    tone("tap");
     render();
     return;
   }
@@ -925,6 +1137,7 @@ document.addEventListener("click", (event) => {
         (t) => t.kind === "j",
       );
       exchangeJoker(game, own.id, p, g);
+      tone("success");
       save();
       selected.clear();
       render(
@@ -944,6 +1157,15 @@ document.addEventListener("click", (event) => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const action = button.dataset.action;
+  if (action === "voice-stop") return speech.stop();
+  if (action === "listening-check") return checkListening();
+  if (action === "listening-reveal") {
+    listeningShowText = true;
+    render();
+    return;
+  }
+  if (["listening-next", "listening-back", "listening-repeat"].includes(action))
+    return moveListening(action);
   if (action === "pause-turns") {
     botPaused = !botPaused;
     save();
@@ -953,8 +1175,10 @@ document.addEventListener("click", (event) => {
   }
   if (action === "sound") {
     profile.sound = !profile.sound;
+    profile.soundPreferenceSet = true;
     save();
-    tone();
+    if (profile.sound) tone("tap");
+    else effects.stop();
     render();
     toast(profile.sound ? "Sonidos activados" : "Sonidos desactivados");
   }
@@ -962,6 +1186,7 @@ document.addEventListener("click", (event) => {
   if (action === "close-dialog") closeDialog();
   if (action === "lesson-check") checkLesson();
   if (action === "lesson-next") {
+    speech.stop();
     const { lesson, index } = currentLesson();
     profile.steps[lesson.id] = index + 1;
     if (
@@ -976,6 +1201,7 @@ document.addEventListener("click", (event) => {
     window.scrollTo(0, 0);
   }
   if (action === "lesson-back") {
+    speech.stop();
     const { lesson, index } = currentLesson();
     profile.steps[lesson.id] = Math.max(0, index - 1);
     save();
@@ -983,6 +1209,7 @@ document.addEventListener("click", (event) => {
     render();
   }
   if (action === "lesson-repeat") {
+    speech.stop();
     const { lesson } = currentLesson();
     profile.steps[lesson.id] = 0;
     save();
@@ -995,6 +1222,7 @@ document.addEventListener("click", (event) => {
   if (["pass", "draw", "discard", "skip-claim", "win"].includes(action))
     gameAction(action);
   if (action === "sort") {
+    tone("tap");
     const order = [...allKinds, "j"];
     game.players[0].hand.sort(
       (a, b) => order.indexOf(a.kind) - order.indexOf(b.kind),
@@ -1042,9 +1270,15 @@ document.addEventListener("click", (event) => {
     );
   if (action === "reset") {
     turnPlayer.stop();
+    speech.stop();
+    effects.stop();
     profile.steps = {};
     profile.completed = [];
     profile.attempts = {};
+    profile.listeningSteps = {};
+    profile.listeningCompleted = [];
+    profile.audioHeard = [];
+    listenedSteps.clear();
     game = null;
     tableChange = null;
     save();
@@ -1069,6 +1303,8 @@ document.addEventListener("submit", (event) => {
     const data = new FormData(event.target);
     profile.name = String(data.get("name")).trim().slice(0, 30) || "Gaby";
     profile.sound = data.has("sound");
+    profile.soundPreferenceSet = true;
+    if (!profile.sound) effects.stop();
     if (game) game.players[0].name = profile.name;
     save();
     closeDialog();
@@ -1138,13 +1374,25 @@ document.addEventListener("keydown", (event) => {
 });
 window.addEventListener("hashchange", () => {
   turnPlayer.stop();
+  speech.stop();
+  effects.stop();
   resetInteraction();
   closeDialog();
   render();
   window.scrollTo(0, 0);
   $("#main")?.focus();
 });
-document.addEventListener("visibilitychange", () => turnPlayer.sync());
-window.addEventListener("pagehide", () => turnPlayer.stop());
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    speech.stop();
+    effects.stop();
+  }
+  turnPlayer.sync();
+});
+window.addEventListener("pagehide", () => {
+  speech.stop();
+  effects.stop();
+  turnPlayer.stop();
+});
 window.addEventListener("pageshow", () => turnPlayer.sync());
 render();
